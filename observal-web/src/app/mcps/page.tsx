@@ -17,7 +17,8 @@ export default function McpsPage() {
   const [search, setSearch] = useState('')
   const [category, setCategory] = useState('')
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ git_url: '', name: '', version: '1.0.0', description: '', category: 'utilities', owner: '', supported_ides: 'cursor, kiro', changelog: 'Initial release' })
+  const [form, setForm] = useState({ git_url: '', name: '', version: '1.0.0', description: '', category: 'utilities', owner: '', changelog: 'Initial release' })
+  const [selectedIdes, setSelectedIdes] = useState<string[]>(['cursor', 'kiro'])
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -38,11 +39,11 @@ export default function McpsPage() {
     try {
       const res = await api.post('/api/v1/mcps/submit', {
         ...form,
-        supported_ides: form.supported_ides.split(',').map(s => s.trim()).filter(Boolean),
+        supported_ides: selectedIdes,
       })
       setSuccess(`Submitted! ID: ${res.id} — Status: ${res.status}`)
       setShowForm(false)
-      setForm({ git_url: '', name: '', version: '1.0.0', description: '', category: 'utilities', owner: '', supported_ides: 'cursor, kiro', changelog: 'Initial release' })
+      setForm({ git_url: '', name: '', version: '1.0.0', description: '', category: 'utilities', owner: '', changelog: 'Initial release' })
     } catch (err: unknown) { setError(err instanceof Error ? err.message : 'Submit failed') }
   }
 
@@ -71,7 +72,17 @@ export default function McpsPage() {
             <input value={form.version} onChange={e => setForm({ ...form, version: e.target.value })} placeholder="Version *" required className="border rounded px-3 py-2 text-sm" />
             <input value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} placeholder="Category *" required className="border rounded px-3 py-2 text-sm" />
             <input value={form.owner} onChange={e => setForm({ ...form, owner: e.target.value })} placeholder="Owner / Team *" required className="border rounded px-3 py-2 text-sm" />
-            <input value={form.supported_ides} onChange={e => setForm({ ...form, supported_ides: e.target.value })} placeholder="IDEs (comma-separated)" className="border rounded px-3 py-2 text-sm" />
+          </div>
+          <div className="mb-2">
+            <p className="text-sm font-medium mb-1">Supported IDEs:</p>
+            <div className="flex flex-wrap gap-2">
+              {['cursor', 'kiro', 'claude-code', 'gemini-cli', 'vscode', 'windsurf'].map(ide => (
+                <label key={ide} className={`text-xs px-3 py-1.5 rounded border cursor-pointer select-none ${selectedIdes.includes(ide) ? 'bg-blue-100 border-blue-400 text-blue-700' : 'bg-gray-50 text-gray-600'}`}>
+                  <input type="checkbox" checked={selectedIdes.includes(ide)} onChange={() => setSelectedIdes(prev => prev.includes(ide) ? prev.filter(x => x !== ide) : [...prev, ide])} className="sr-only" />
+                  {ide}
+                </label>
+              ))}
+            </div>
           </div>
           <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Description — min 100 characters *" required rows={3} className="w-full border rounded px-3 py-2 text-sm" />
           <input value={form.changelog} onChange={e => setForm({ ...form, changelog: e.target.value })} placeholder="Changelog" className="w-full border rounded px-3 py-2 text-sm" />

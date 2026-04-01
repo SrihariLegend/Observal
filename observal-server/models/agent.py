@@ -26,6 +26,7 @@ class Agent(Base):
     prompt: Mapped[str] = mapped_column(Text, nullable=False)
     model_name: Mapped[str] = mapped_column(String(100), nullable=False)
     model_config_json: Mapped[dict] = mapped_column(JSON, default=dict)
+    external_mcps: Mapped[list] = mapped_column(JSON, default=list)  # [{name, command, args, env, url}]
     supported_ides: Mapped[list] = mapped_column(JSON, default=list)
     status: Mapped[AgentStatus] = mapped_column(Enum(AgentStatus), default=AgentStatus.active)
     created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)

@@ -6,6 +6,14 @@ import Link from 'next/link'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
 
+function download(filename: string, content: string) {
+  const blob = new Blob([content], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
 export default function AgentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { user, loading } = useAuth()
@@ -14,7 +22,7 @@ export default function AgentDetailPage() {
   const [summary, setSummary] = useState<any>(null)
   const [feedback, setFeedback] = useState<any[]>([])
   const [ide, setIde] = useState('kiro')
-  const [snippet, setSnippet] = useState('')
+  const [installData, setInstallData] = useState<any>(null)
   const [rating, setRating] = useState(5)
   const [comment, setComment] = useState('')
   const [showPrompt, setShowPrompt] = useState(false)
@@ -32,7 +40,7 @@ export default function AgentDetailPage() {
   const handleInstall = async () => {
     try {
       const res = await api.post(`/api/v1/agents/${id}/install`, { ide })
-      setSnippet(JSON.stringify(res.config_snippet, null, 2))
+      setInstallData(res.config_snippet)
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Install failed') }
   }
 
@@ -48,14 +56,17 @@ export default function AgentDetailPage() {
 
   const handleDelete = async () => {
     if (!confirm('Delete this agent? This cannot be undone.')) return
-    try {
-      await api.del(`/api/v1/agents/${id}`)
-      router.push('/agents')
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Delete failed') }
+    try { await api.del(`/api/v1/agents/${id}`); router.push('/agents') }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : 'Delete failed') }
   }
 
   if (loading || !user || !agent) return null
   const canDelete = user.role === 'admin' || agent.created_by === user.id
+
+  // Build downloadable files from install data
+  const rulesFile = installData?.rules_file
+  const mcpConfig = installData?.mcp_json || installData?.mcp_config || {}
+  const mcpCommands = installData?.mcp_setup_commands || []
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -76,16 +87,33 @@ export default function AgentDetailPage() {
         {showPrompt && <pre className="bg-gray-100 rounded p-3 text-sm mt-2 whitespace-pre-wrap">{agent.prompt}</pre>}
       </div>
 
-      {agent.mcp_links?.length > 0 && (
+      {(agent.mcp_links?.length > 0 || agent.external_mcps?.length > 0) && (
         <div className="bg-white rounded-lg shadow p-4 mb-6">
-          <h2 className="font-semibold mb-2">Linked MCP Servers</h2>
-          <ul className="text-sm space-y-1">
-            {agent.mcp_links.map((m: any, i: number) => (
-              <li key={i}>
-                <Link href={`/mcps/${m.mcp_listing_id}`} className="text-blue-600 hover:underline">{m.mcp_name || m.mcp_listing_id}</Link>
-              </li>
-            ))}
-          </ul>
+          <h2 className="font-semibold mb-2">MCP Servers</h2>
+          {agent.mcp_links?.length > 0 && (
+            <div className="mb-2">
+              <p className="text-xs text-gray-500 mb-1">From Registry:</p>
+              <ul className="text-sm space-y-1">
+                {agent.mcp_links.map((m: any, i: number) => (
+                  <li key={i}><Link href={`/mcps/${m.mcp_listing_id}`} className="text-blue-600 hover:underline">{m.mcp_name || m.mcp_listing_id}</Link></li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {agent.external_mcps?.length > 0 && (
+            <div>
+              <p className="text-xs text-gray-500 mb-1">External:</p>
+              <ul className="text-sm space-y-1">
+                {agent.external_mcps.map((m: any, i: number) => (
+                  <li key={i} className="flex items-center gap-2">
+                    <span className="font-medium">{m.name}</span>
+                    <code className="text-xs bg-gray-100 px-1 rounded">{m.command} {(m.args || []).join(' ')}</code>
+                    {m.url && <a href={m.url} className="text-blue-600 text-xs hover:underline" target="_blank" rel="noopener">↗</a>}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       )}
 
@@ -102,22 +130,59 @@ export default function AgentDetailPage() {
         </div>
       )}
 
+      {/* Install Section */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <h2 className="font-semibold mb-3">Install</h2>
-        <div className="flex gap-2 mb-3">
-          <select value={ide} onChange={e => setIde(e.target.value)} className="border rounded px-3 py-2 text-sm">
-            {['cursor', 'kiro', 'claude-code', 'gemini-cli', 'vscode'].map(i => <option key={i} value={i}>{i}</option>)}
-          </select>
-          <button onClick={handleInstall} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm">Get Config</button>
+        <h2 className="font-semibold mb-3">Install for your IDE</h2>
+        <div className="flex gap-2 mb-4">
+          {['kiro', 'cursor', 'claude-code', 'gemini-cli', 'vscode'].map(i => (
+            <button key={i} onClick={() => { setIde(i); setInstallData(null) }}
+              className={`px-3 py-1.5 rounded text-sm border ${ide === i ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>
+              {i}
+            </button>
+          ))}
         </div>
-        {snippet && (
-          <div className="relative">
-            <pre className="bg-gray-900 text-green-400 p-3 rounded text-sm overflow-x-auto">{snippet}</pre>
-            <button onClick={() => navigator.clipboard.writeText(snippet).catch(() => {})} className="absolute top-2 right-2 bg-gray-700 text-white text-xs px-2 py-1 rounded hover:bg-gray-600">Copy</button>
+        <button onClick={handleInstall} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm mb-4">Generate Config</button>
+
+        {installData && (
+          <div className="space-y-4">
+            {/* Rules file */}
+            {rulesFile && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-medium">📄 {rulesFile.path}</span>
+                  <button onClick={() => download(rulesFile.path.split('/').pop() || 'agent.md', rulesFile.content)}
+                    className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700">⬇ Download</button>
+                </div>
+                <pre className="bg-gray-900 text-green-400 p-3 rounded text-xs overflow-x-auto max-h-40">{rulesFile.content}</pre>
+              </div>
+            )}
+
+            {/* MCP config */}
+            {Object.keys(mcpConfig).length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-medium">📄 {ide === 'kiro' ? '.kiro/mcp.json' : ide === 'gemini-cli' ? 'mcp-config.json' : '.cursor/mcp.json'}</span>
+                  <button onClick={() => download('mcp.json', JSON.stringify(mcpConfig, null, 2))}
+                    className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700">⬇ Download</button>
+                </div>
+                <pre className="bg-gray-900 text-green-400 p-3 rounded text-xs overflow-x-auto max-h-40">{JSON.stringify(mcpConfig, null, 2)}</pre>
+              </div>
+            )}
+
+            {/* Claude Code shell commands */}
+            {mcpCommands.length > 0 && (
+              <div>
+                <span className="text-sm font-medium mb-1 block">🖥️ Run these commands:</span>
+                <pre className="bg-gray-900 text-green-400 p-3 rounded text-xs overflow-x-auto">{mcpCommands.join('\n')}</pre>
+                <button onClick={() => navigator.clipboard.writeText(mcpCommands.join('\n')).catch(() => {})}
+                  className="mt-1 text-xs text-blue-600 hover:underline">Copy commands</button>
+              </div>
+            )}
           </div>
         )}
       </div>
 
+      {/* Feedback */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
         <h2 className="font-semibold mb-3">Feedback</h2>
         {summary && <p className="text-sm text-gray-600 mb-3">Average: {summary.average_rating?.toFixed(1)} ⭐ ({summary.total_reviews} reviews)</p>}

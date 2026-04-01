@@ -9,6 +9,7 @@ import { api } from '@/lib/api'
 interface AgentItem { id: string; name: string; version: string; description: string; owner: string; model_name: string; supported_ides: string[]; status: string }
 interface McpOption { id: string; name: string }
 interface Section { name: string; description: string; grounding_required: boolean }
+interface ExtMcp { name: string; command: string; args: string; env: string; url: string }
 
 export default function AgentsPage() {
   const { user, loading } = useAuth()
@@ -17,8 +18,10 @@ export default function AgentsPage() {
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [mcpOptions, setMcpOptions] = useState<McpOption[]>([])
-  const [form, setForm] = useState({ name: '', version: '1.0.0', description: '', owner: '', prompt: '', model_name: 'claude-sonnet-4', supported_ides: 'cursor, kiro, claude-code', mcp_ids: [] as string[], goal_desc: '' })
+  const [form, setForm] = useState({ name: '', version: '1.0.0', description: '', owner: '', prompt: '', model_name: 'claude-sonnet-4', mcp_ids: [] as string[], goal_desc: '' })
+  const [selectedIdes, setSelectedIdes] = useState<string[]>(['cursor', 'kiro'])
   const [sections, setSections] = useState<Section[]>([{ name: '', description: '', grounding_required: false }])
+  const [extMcps, setExtMcps] = useState<ExtMcp[]>([])
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -49,8 +52,14 @@ export default function AgentsPage() {
         name: form.name, version: form.version, description: form.description, owner: form.owner,
         prompt: form.prompt, model_name: form.model_name,
         model_config_json: { max_tokens: 4096, temperature: 0.2 },
-        supported_ides: form.supported_ides.split(',').map(s => s.trim()).filter(Boolean),
+        supported_ides: selectedIdes,
         mcp_server_ids: form.mcp_ids,
+        external_mcps: extMcps.filter(m => m.name.trim()).map(m => ({
+          name: m.name, command: m.command || 'npx',
+          args: m.args ? m.args.split(' ').filter(Boolean) : [],
+          env: m.env ? Object.fromEntries(m.env.split(',').filter(Boolean).map(kv => kv.split('=').map(s => s.trim()))) : {},
+          url: m.url || null,
+        })),
         goal_template: { description: form.goal_desc, sections: validSections },
       })
       setSuccess(`Agent created! ID: ${res.id}`)
@@ -83,7 +92,17 @@ export default function AgentsPage() {
             <input value={form.version} onChange={e => setForm({ ...form, version: e.target.value })} placeholder="Version *" required className="border rounded px-3 py-2 text-sm" />
             <input value={form.owner} onChange={e => setForm({ ...form, owner: e.target.value })} placeholder="Owner / Team *" required className="border rounded px-3 py-2 text-sm" />
             <input value={form.model_name} onChange={e => setForm({ ...form, model_name: e.target.value })} placeholder="Model Name *" required className="border rounded px-3 py-2 text-sm" />
-            <input value={form.supported_ides} onChange={e => setForm({ ...form, supported_ides: e.target.value })} placeholder="IDEs (comma-separated)" className="border rounded px-3 py-2 text-sm col-span-2" />
+          </div>
+          <div className="mb-2">
+            <p className="text-sm font-medium mb-1">Supported IDEs:</p>
+            <div className="flex flex-wrap gap-2">
+              {['cursor', 'kiro', 'claude-code', 'gemini-cli', 'vscode', 'windsurf'].map(ide => (
+                <label key={ide} className={`text-xs px-3 py-1.5 rounded border cursor-pointer select-none ${selectedIdes.includes(ide) ? 'bg-blue-100 border-blue-400 text-blue-700' : 'bg-gray-50 text-gray-600'}`}>
+                  <input type="checkbox" checked={selectedIdes.includes(ide)} onChange={() => setSelectedIdes(prev => prev.includes(ide) ? prev.filter(x => x !== ide) : [...prev, ide])} className="sr-only" />
+                  {ide}
+                </label>
+              ))}
+            </div>
           </div>
           <textarea value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Description — min 100 characters *" required rows={2} className="w-full border rounded px-3 py-2 text-sm" />
           <textarea value={form.prompt} onChange={e => setForm({ ...form, prompt: e.target.value })} placeholder="System Prompt — min 50 characters *" required rows={3} className="w-full border rounded px-3 py-2 text-sm" />
@@ -101,6 +120,22 @@ export default function AgentsPage() {
               </div>
             </div>
           )}
+
+          {/* External MCPs */}
+          <div>
+            <p className="text-sm font-medium mb-1">External MCP Servers (any MCP, not in registry):</p>
+            {extMcps.map((m, i) => (
+              <div key={i} className="grid grid-cols-5 gap-2 mb-1">
+                <input value={m.name} onChange={e => { const n = [...extMcps]; n[i].name = e.target.value; setExtMcps(n) }} placeholder="Name *" className="border rounded px-2 py-1 text-sm" />
+                <input value={m.command} onChange={e => { const n = [...extMcps]; n[i].command = e.target.value; setExtMcps(n) }} placeholder="Command (npx)" className="border rounded px-2 py-1 text-sm" />
+                <input value={m.args} onChange={e => { const n = [...extMcps]; n[i].args = e.target.value; setExtMcps(n) }} placeholder="Args (space-sep)" className="border rounded px-2 py-1 text-sm" />
+                <input value={m.url} onChange={e => { const n = [...extMcps]; n[i].url = e.target.value; setExtMcps(n) }} placeholder="Source URL" className="border rounded px-2 py-1 text-sm" />
+                <button type="button" onClick={() => setExtMcps(extMcps.filter((_, j) => j !== i))} className="text-red-500 text-sm">✕</button>
+              </div>
+            ))}
+            <button type="button" onClick={() => setExtMcps([...extMcps, { name: '', command: 'npx', args: '', env: '', url: '' }])} className="text-blue-600 text-xs mt-1">+ Add External MCP</button>
+            <p className="text-xs text-gray-400 mt-1">e.g., Name: &quot;github-mcp&quot;, Command: &quot;npx&quot;, Args: &quot;-y @modelcontextprotocol/server-github&quot;</p>
+          </div>
 
           <div>
             <p className="text-sm font-medium mb-1">Goal Template:</p>

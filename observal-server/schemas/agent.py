@@ -17,6 +17,14 @@ class GoalTemplateRequest(BaseModel):
     sections: list[GoalSectionRequest] = Field(min_length=1)
 
 
+class ExternalMcp(BaseModel):
+    name: str
+    command: str = "npx"
+    args: list[str] = []
+    env: dict[str, str] = {}
+    url: str | None = None  # source URL for reference
+
+
 class AgentCreateRequest(BaseModel):
     name: str
     version: str
@@ -27,6 +35,7 @@ class AgentCreateRequest(BaseModel):
     model_config_json: dict = {}
     supported_ides: list[str] = []
     mcp_server_ids: list[uuid.UUID] = []
+    external_mcps: list[ExternalMcp] = []
     goal_template: GoalTemplateRequest
 
 
@@ -40,6 +49,7 @@ class AgentUpdateRequest(BaseModel):
     model_config_json: dict | None = None
     supported_ides: list[str] | None = None
     mcp_server_ids: list[uuid.UUID] | None = None
+    external_mcps: list[ExternalMcp] | None = None
     goal_template: GoalTemplateRequest | None = None
 
 
@@ -73,6 +83,7 @@ class AgentResponse(BaseModel):
     prompt: str
     model_name: str
     model_config_json: dict
+    external_mcps: list = []
     supported_ides: list[str]
     status: AgentStatus
     created_by: uuid.UUID

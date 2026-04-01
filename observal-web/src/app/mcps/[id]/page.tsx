@@ -5,6 +5,14 @@ import { useParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/lib/auth'
 import { api } from '@/lib/api'
 
+function download(filename: string, content: string) {
+  const blob = new Blob([content], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = filename; a.click()
+  URL.revokeObjectURL(url)
+}
+
 export default function McpDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { user, loading } = useAuth()
@@ -12,8 +20,8 @@ export default function McpDetailPage() {
   const [mcp, setMcp] = useState<any>(null)
   const [summary, setSummary] = useState<any>(null)
   const [feedback, setFeedback] = useState<any[]>([])
-  const [ide, setIde] = useState('cursor')
-  const [snippet, setSnippet] = useState('')
+  const [ide, setIde] = useState('kiro')
+  const [snippet, setSnippet] = useState<any>(null)
   const [rating, setRating] = useState(5)
   const [comment, setComment] = useState('')
   const [error, setError] = useState('')
@@ -30,7 +38,7 @@ export default function McpDetailPage() {
   const handleInstall = async () => {
     try {
       const res = await api.post(`/api/v1/mcps/${id}/install`, { ide })
-      setSnippet(JSON.stringify(res.config_snippet, null, 2))
+      setSnippet(res.config_snippet)
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Install failed') }
   }
 
@@ -46,14 +54,16 @@ export default function McpDetailPage() {
 
   const handleDelete = async () => {
     if (!confirm('Delete this MCP server? This cannot be undone.')) return
-    try {
-      await api.del(`/api/v1/mcps/${id}`)
-      router.push('/mcps')
-    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Delete failed') }
+    try { await api.del(`/api/v1/mcps/${id}`); router.push('/mcps') }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : 'Delete failed') }
   }
 
   if (loading || !user || !mcp) return null
   const canDelete = user.role === 'admin' || mcp.submitted_by === user.id
+
+  const isShellCommand = snippet && typeof snippet === 'object' && snippet.command
+  const configStr = snippet ? JSON.stringify(snippet, null, 2) : ''
+  const configFilename = ide === 'kiro' ? 'mcp.json' : ide === 'gemini-cli' ? 'mcp-config.json' : 'mcp.json'
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -75,22 +85,43 @@ export default function McpDetailPage() {
       )}
       {mcp.setup_instructions && <div className="bg-gray-100 rounded p-3 text-sm mb-6 whitespace-pre-wrap">{mcp.setup_instructions}</div>}
 
+      {/* Install */}
       <div className="bg-white rounded-lg shadow p-4 mb-6">
-        <h2 className="font-semibold mb-3">Install</h2>
-        <div className="flex gap-2 mb-3">
-          <select value={ide} onChange={e => setIde(e.target.value)} className="border rounded px-3 py-2 text-sm">
-            {['cursor', 'kiro', 'claude-code', 'gemini-cli', 'vscode', 'windsurf'].map(i => <option key={i} value={i}>{i}</option>)}
-          </select>
-          <button onClick={handleInstall} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm">Get Config</button>
+        <h2 className="font-semibold mb-3">Install for your IDE</h2>
+        <div className="flex gap-2 mb-4">
+          {['kiro', 'cursor', 'claude-code', 'gemini-cli', 'vscode'].map(i => (
+            <button key={i} onClick={() => { setIde(i); setSnippet(null) }}
+              className={`px-3 py-1.5 rounded text-sm border ${ide === i ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 hover:bg-gray-50'}`}>
+              {i}
+            </button>
+          ))}
         </div>
+        <button onClick={handleInstall} className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 text-sm mb-4">Generate Config</button>
+
         {snippet && (
-          <div className="relative">
-            <pre className="bg-gray-900 text-green-400 p-3 rounded text-sm overflow-x-auto">{snippet}</pre>
-            <button onClick={() => navigator.clipboard.writeText(snippet).catch(() => {})} className="absolute top-2 right-2 bg-gray-700 text-white text-xs px-2 py-1 rounded hover:bg-gray-600">Copy</button>
+          <div>
+            {isShellCommand ? (
+              <div>
+                <span className="text-sm font-medium mb-1 block">🖥️ Run this command:</span>
+                <pre className="bg-gray-900 text-green-400 p-3 rounded text-sm">{snippet.command}</pre>
+                <button onClick={() => navigator.clipboard.writeText(snippet.command).catch(() => {})}
+                  className="mt-1 text-xs text-blue-600 hover:underline">Copy command</button>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-sm font-medium">📄 {ide === 'kiro' ? '.kiro/mcp.json' : `.${ide}/mcp.json`}</span>
+                  <button onClick={() => download(configFilename, configStr)}
+                    className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700">⬇ Download</button>
+                </div>
+                <pre className="bg-gray-900 text-green-400 p-3 rounded text-xs overflow-x-auto">{configStr}</pre>
+              </div>
+            )}
           </div>
         )}
       </div>
 
+      {/* Feedback */}
       <div className="bg-white rounded-lg shadow p-4">
         <h2 className="font-semibold mb-3">Feedback</h2>
         {summary && <p className="text-sm text-gray-600 mb-3">Average: {summary.average_rating?.toFixed(1)} ⭐ ({summary.total_reviews} reviews)</p>}

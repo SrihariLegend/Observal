@@ -85,6 +85,7 @@ async def create_agent(
         prompt=req.prompt,
         model_name=req.model_name,
         model_config_json=req.model_config_json,
+        external_mcps=[m.model_dump() for m in req.external_mcps],
         supported_ides=req.supported_ides,
         created_by=current_user.id,
     )
@@ -149,6 +150,9 @@ async def update_agent(
         val = getattr(req, field)
         if val is not None:
             setattr(agent, field, val)
+
+    if req.external_mcps is not None:
+        agent.external_mcps = [m.model_dump() for m in req.external_mcps]
 
     if req.mcp_server_ids is not None:
         await _validate_mcp_ids(req.mcp_server_ids, db)
