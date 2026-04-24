@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- multi-stage API Dockerfile reduces image from 923MB to 532MB (42%) (**docker**)
+- expand .dockerignore to exclude non-build files for faster builds (**docker**)
+- enable nginx gzip compression for JSON API responses (**docker**)
+
 ## [0.3.3] - 2026-04-24
 
 ### Fixed
