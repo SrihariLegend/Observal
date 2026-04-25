@@ -7,13 +7,6 @@ import type { SessionEfficiencyData } from "@/hooks/use-api";
 
 type EfficiencyData = SessionEfficiencyData;
 
-function ratingColor(r: number): string {
-  if (r >= 0.85) return "#10b981";
-  if (r >= 0.7) return "#3b82f6";
-  if (r >= 0.5) return "#f59e0b";
-  return "#ef4444";
-}
-
 function interpretStyle(label: string): { color: string; bg: string; border: string } {
   if (label.startsWith("Excellent")) return { color: "#10b981", bg: "rgba(16,185,129,0.08)", border: "rgba(16,185,129,0.2)" };
   if (label.startsWith("Good"))      return { color: "#3b82f6", bg: "rgba(59,130,246,0.08)", border: "rgba(59,130,246,0.2)" };
@@ -27,15 +20,12 @@ const METRIC_LABELS: Record<string, { label: string; description: string }> = {
   path_efficiency_ratio:      { label: "Path Efficiency",      description: "Effective actions / total actions" },
   token_waste_rate:           { label: "Token Waste",           description: "Tokens spent on reverted work" },
   first_pass_success_rate:    { label: "First Pass Success",    description: "Writes that stuck without revert" },
-  write_without_verify_ratio: { label: "Write Without Verify",  description: "Writes not followed by a build/test" },
   file_churn_rate:            { label: "File Churn",            description: "Files rewritten multiple times" },
   repetition_cycles:          { label: "Repetition Cycles",     description: "Detected edit-error-fix loops" },
   duplicate_tool_call_count:  { label: "Duplicate Calls",       description: "Identical tool calls repeated" },
 };
 
 export function EfficiencyMetrics({ data }: { data: EfficiencyData }) {
-  const rating = data.efficiency_rating;
-  const color = ratingColor(rating);
   const containerRef = useRef<HTMLDivElement>(null);
   const animatedRef = useRef(false);
 
@@ -43,8 +33,6 @@ export function EfficiencyMetrics({ data }: { data: EfficiencyData }) {
     if (animatedRef.current || !containerRef.current) return;
     animatedRef.current = true;
 
-    const scoreEl = containerRef.current.querySelector("[data-score-number]");
-    const barFill = containerRef.current.querySelector("[data-bar-fill]");
     const rows = containerRef.current.querySelectorAll("[data-metric-row]");
     const warnings = containerRef.current.querySelectorAll("[data-warning]");
 
@@ -52,27 +40,9 @@ export function EfficiencyMetrics({ data }: { data: EfficiencyData }) {
     gsap.set(warnings, { opacity: 0, y: 8 });
 
     const tl = gsap.timeline({ defaults: { ease: "expo.out" } });
-
-    if (scoreEl) {
-      const target = { val: 0 };
-      tl.to(target, {
-        val: rating * 100,
-        duration: 1.2,
-        ease: "expo.out",
-        onUpdate: () => {
-          scoreEl.textContent = Math.round(target.val).toString();
-        },
-      }, 0);
-    }
-
-    if (barFill) {
-      gsap.set(barFill, { width: "0%" });
-      tl.to(barFill, { width: `${rating * 100}%`, duration: 1, ease: "expo.out" }, 0.1);
-    }
-
-    tl.to(rows, { opacity: 1, x: 0, duration: 0.5, stagger: 0.04 }, 0.3);
+    tl.to(rows, { opacity: 1, x: 0, duration: 0.5, stagger: 0.04 }, 0.1);
     tl.to(warnings, { opacity: 1, y: 0, duration: 0.4, stagger: 0.06 }, "-=0.2");
-  }, [rating]);
+  }, []);
 
   const entries = Object.entries(data.interpretation);
 
@@ -83,7 +53,7 @@ export function EfficiencyMetrics({ data }: { data: EfficiencyData }) {
           <CardTitle className="text-sm font-semibold tracking-tight flex items-center gap-2">
             <span
               className="w-5 h-5 rounded flex items-center justify-center text-[10px] font-black"
-              style={{ background: color + "1a", color, border: `1px solid ${color}33` }}
+              style={{ background: "rgba(59,130,246,0.1)", color: "#3b82f6", border: "1px solid rgba(59,130,246,0.2)" }}
             >
               E
             </span>
@@ -106,40 +76,8 @@ export function EfficiencyMetrics({ data }: { data: EfficiencyData }) {
             border: "1px solid rgba(100,116,139,0.1)",
           }}
         >
-          {/* Hero score section */}
-          <div className="px-5 pt-5 pb-4">
-            <div className="flex items-end gap-4">
-              <div className="flex items-baseline gap-1">
-                <span
-                  data-score-number
-                  className="text-5xl font-black tabular-nums leading-none"
-                  style={{ color, textShadow: `0 0 40px ${color}40` }}
-                >
-                  0
-                </span>
-                <span className="text-lg font-medium" style={{ color: color + "80" }}>/100</span>
-              </div>
-              <div className="flex-1 pb-2">
-                <div
-                  className="h-2 rounded-full overflow-hidden"
-                  style={{ background: "rgba(100,116,139,0.08)" }}
-                >
-                  <div
-                    data-bar-fill
-                    className="h-full rounded-full"
-                    style={{
-                      background: `linear-gradient(90deg, ${color}cc, ${color})`,
-                      boxShadow: `0 0 12px ${color}50`,
-                      width: "0%",
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Metrics grid */}
-          <div className="px-4 pb-4 space-y-1">
+          <div className="px-4 py-4 space-y-1">
             {entries.map(([key, label]) => {
               const meta = METRIC_LABELS[key] || { label: key, description: "" };
               const rawValue = data.efficiency_metrics[key];

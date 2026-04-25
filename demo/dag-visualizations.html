@@ -1,0 +1,1070 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agent Trace Visualizer — Observal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;600;700&family=Inter+Tight:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#f2ede2;--paper-2:#ebe4d3;--ink:#1b1a17;--ink-2:#3a362d;--ink-3:#6b6658;--ink-4:#9e9685;--amber:#e86a17;--teal:#1d6b6b;--moss:#6b7a3a;--rose:#c24d5c;--plum:#5c3a6b;--sky:#3a6ba0;--card-bg:#f6f1e5;--font-display:'Instrument Serif',serif;--font-sans:'Inter Tight',system-ui,sans-serif;--font-mono:'JetBrains Mono',monospace;}
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{background:var(--paper);color:var(--ink);font-family:var(--font-sans);-webkit-font-smoothing:antialiased;}
+body{background-image:linear-gradient(to right,rgba(27,26,23,0.035)1px,transparent 1px),linear-gradient(to bottom,rgba(27,26,23,0.035)1px,transparent 1px);background-size:24px 24px;}
+.grain::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:1000;opacity:0.25;mix-blend-mode:multiply;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.1 0 0 0 0 0.1 0 0 0 0 0.09 0 0 0 0.15 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>")}
+.container{max-width:1240px;margin:0 auto;padding:0 32px;}
+.header{padding:32px 0 0;display:flex;align-items:end;justify-content:space-between;gap:20px;flex-wrap:wrap;}
+.header h1{font-family:var(--font-display);font-size:32px;font-weight:400;line-height:1;}
+.header h1 em{font-style:italic;color:var(--amber);}
+.header .meta{font-family:var(--font-mono);font-size:10px;color:var(--ink-3);letter-spacing:0.1em;text-transform:uppercase;display:flex;gap:12px;align-items:center;}
+.dot{width:6px;height:6px;background:var(--amber);border-radius:50%;display:inline-block;animation:pulse 1.6s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(0.7)}}
+.input-row{display:flex;gap:8px;align-items:center;margin:16px 0 0;flex-wrap:wrap;}
+.input-row label{font-family:var(--font-mono);font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.1em;}
+.input-row input,.input-row select{font-family:var(--font-mono);font-size:12px;padding:6px 10px;border:1.5px solid var(--ink);border-radius:2px;background:var(--card-bg);color:var(--ink);}
+.input-row input{width:340px;}
+.input-row button{font-family:var(--font-mono);font-size:11px;font-weight:700;padding:6px 14px;border:1.5px solid var(--ink);background:var(--ink);color:var(--paper);border-radius:2px;cursor:pointer;letter-spacing:0.04em;}
+.input-row button:hover{background:var(--amber);border-color:var(--amber);}
+.tabs{display:flex;gap:0;margin:20px 0 0;border-bottom:1.5px solid var(--ink);flex-wrap:wrap;}
+.tab{padding:8px 14px 10px;cursor:pointer;font-family:var(--font-mono);font-size:10px;font-weight:600;color:var(--ink-3);letter-spacing:0.04em;border-bottom:2px solid transparent;transition:all 0.15s;user-select:none;}
+.tab:hover{color:var(--ink);}.tab.active{color:var(--amber);border-bottom-color:var(--amber);}
+.panel{display:none;padding:20px 0 48px;}.panel.active{display:block;}
+.card{background:var(--card-bg);border:1.5px solid var(--ink);border-radius:4px;box-shadow:5px 5px 0 var(--ink);overflow:hidden;}
+.card-head{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;border-bottom:1.5px solid var(--ink);background:var(--paper);font-family:var(--font-mono);font-size:9px;text-transform:uppercase;letter-spacing:0.14em;color:var(--ink-3);}
+.card-head .dots{display:flex;gap:4px;}.card-head .dots i{width:5px;height:5px;display:inline-block;border:1px solid var(--ink-3);border-radius:50%;}.card-head .dots i.live{background:var(--amber);border-color:var(--amber);animation:pulse 1.6s ease-in-out infinite;}
+canvas{display:block;}
+.legend{display:flex;gap:12px;padding:10px 16px;border-top:1.5px solid var(--ink);flex-wrap:wrap;background:var(--paper);}
+.legend-item{display:flex;align-items:center;gap:4px;font-family:var(--font-mono);font-size:9px;color:var(--ink-3);}
+.legend-dot{width:7px;height:7px;border:1px solid var(--ink);}
+.legend-dot.circle{border-radius:50%;}
+.desc{padding:14px 16px;font-size:12px;color:var(--ink-2);line-height:1.5;border-top:1px dashed var(--ink-4);}
+.desc strong{color:var(--ink);font-family:var(--font-display);font-size:15px;font-style:italic;}
+.loading{padding:80px;text-align:center;font-family:var(--font-mono);font-size:12px;color:var(--ink-3);}
+.stats{display:flex;gap:24px;margin:12px 0;flex-wrap:wrap;}
+.stat{border-left:1.5px solid var(--ink);padding-left:12px;}
+.stat .n{font-family:var(--font-display);font-size:28px;line-height:1;}
+.stat .l{font-family:var(--font-mono);font-size:9px;color:var(--ink-3);text-transform:uppercase;letter-spacing:0.1em;margin-top:2px;}
+#error-msg{font-family:var(--font-mono);font-size:11px;color:var(--rose);margin-top:8px;}
+</style>
+</head>
+<body class="grain">
+<div class="container">
+
+<div class="header">
+  <div>
+    <h1>Trace <em>Visualizer</em></h1>
+  </div>
+  <div class="meta"><span class="dot"></span><span id="session-label">no session loaded</span></div>
+</div>
+
+<div class="input-row">
+  <label>Session</label>
+  <select id="session-select"><option value="">loading sessions...</option></select>
+  <button onclick="loadSession()">Load</button>
+  <span id="error-msg"></span>
+</div>
+
+<div class="stats" id="stats" style="display:none"></div>
+
+<div class="tabs" id="tabs" style="display:none"></div>
+<div id="panels"></div>
+
+</div>
+
+<script>
+// =========================================================================
+// CONFIG
+// =========================================================================
+const API = 'http://localhost:8000';
+
+const VIZ = [
+  { id:'waterfall', name:'Waterfall', head:'Trace Waterfall' },
+  { id:'organism',  name:'Organism',  head:'Living Organism' },
+  { id:'difftheater',name:'Diff Theater',head:'File Evolution' },
+  { id:'territory', name:'Territory', head:'Codebase Map' },
+  { id:'topo',      name:'Topo Map',  head:'Contour Survey' },
+  { id:'erosion',   name:'Erosion',   head:'Sculpture' },
+];
+
+const TYPE_HEX = {bash:'#1d6b6b',file_read:'#3a6ba0',file_write:'#e86a17',search:'#5c3a6b',think:'#6b6658',mcp_meta:'#9e9685'};
+const TRACE_COLORS = ['#1d6b6b','#e86a17','#5c3a6b','#6b7a3a','#3a6ba0','#c24d5c','#2b8a8a','#b8520a','#3a362d','#9e9685'];
+
+let token = null;
+let sessionData = null; // { nodes, edges, traces, files, ... }
+
+// =========================================================================
+// AUTH
+// =========================================================================
+async function getToken() {
+  if (token) return token;
+  const r = await fetch(API + '/api/v1/auth/login', {
+    method: 'POST', headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({email:'super@demo.example',password:'super-changeme'})
+  });
+  const d = await r.json();
+  token = d.access_token;
+  return token;
+}
+
+async function apiFetch(path) {
+  const t = await getToken();
+  const r = await fetch(API + path, {headers:{'Authorization':'Bearer '+t}});
+  return r.json();
+}
+
+// =========================================================================
+// LOAD SESSIONS LIST
+// =========================================================================
+async function loadSessionList() {
+  try {
+    const sessions = await apiFetch('/api/v1/otel/sessions');
+    const sel = document.getElementById('session-select');
+    sel.innerHTML = sessions.map(s =>
+      `<option value="${s.session_id}">${s.session_id.slice(0,8)}... · ${s.prompt_count} prompts · ${s.platform||'unknown'}</option>`
+    ).join('');
+    // Auto-select from URL param
+    const urlSid = new URLSearchParams(window.location.search).get('session');
+    if (urlSid) { sel.value = urlSid; loadSession(); }
+  } catch(e) { document.getElementById('error-msg').textContent = 'Failed to load sessions: '+e.message; }
+}
+
+// =========================================================================
+// LOAD + PROCESS SESSION
+// =========================================================================
+async function loadSession() {
+  const sid = document.getElementById('session-select').value;
+  if (!sid) return;
+  document.getElementById('error-msg').textContent = '';
+  document.getElementById('session-label').textContent = 'loading...';
+
+  try {
+    const data = await apiFetch('/api/v1/otel/sessions/'+sid+'/efficiency');
+    if (data.error) { document.getElementById('error-msg').textContent = data.error; return; }
+
+    const nodes = data.dag.nodes;
+    const edges = data.dag.edges;
+
+    // Build trace groups
+    const traceMap = {};
+    nodes.forEach(n => {
+      const t = n.trace_id || '_none';
+      if (!traceMap[t]) traceMap[t] = { id:t, nodes:[], color:TRACE_COLORS[Object.keys(traceMap).length % TRACE_COLORS.length] };
+      traceMap[t].nodes.push(n);
+    });
+    const traces = Object.values(traceMap);
+
+    // Collect files
+    const fileSet = new Set();
+    nodes.forEach(n => (n.files_touched||[]).forEach(f => fileSet.add(f)));
+    const files = [...fileSet];
+
+    // Compute timeline
+    let totalLat = 0;
+    nodes.forEach(n => totalLat += n.latency_ms || 0);
+
+    sessionData = { nodes, edges, traces, files, totalLat, criticalPath: data.dag.critical_path||[], stats: data.dag.stats, metrics: data.efficiency_metrics, sid };
+
+    // Update URL
+    history.replaceState(null, '', '?session='+sid);
+
+    // Show stats
+    document.getElementById('session-label').textContent = sid.slice(0,8)+'... · '+nodes.length+' nodes · '+traces.length+' traces';
+    const statsEl = document.getElementById('stats');
+    statsEl.style.display = 'flex';
+    statsEl.innerHTML = `
+      <div class="stat"><div class="n">${nodes.length}</div><div class="l">events</div></div>
+      <div class="stat"><div class="n">${traces.length}</div><div class="l">traces</div></div>
+      <div class="stat"><div class="n">${files.length}</div><div class="l">files</div></div>
+      <div class="stat"><div class="n">${nodes.filter(n=>n.status==='effective').length}</div><div class="l">effective</div></div>
+      <div class="stat"><div class="n">${nodes.filter(n=>n.status==='reverted').length}</div><div class="l">reverted</div></div>
+      <div class="stat"><div class="n">${(data.dag.critical_path||[]).length}</div><div class="l">critical path</div></div>
+    `;
+
+    buildUI();
+    renderAll();
+  } catch(e) { document.getElementById('error-msg').textContent = 'Error: '+e.message; }
+}
+
+// =========================================================================
+// BUILD TABS + PANELS
+// =========================================================================
+let uiBuilt = false;
+function buildUI() {
+  if (uiBuilt) return;
+  uiBuilt = true;
+  const tabsEl = document.getElementById('tabs');
+  const panelsEl = document.getElementById('panels');
+  tabsEl.style.display = 'flex';
+
+  VIZ.forEach((v,i) => {
+    const t = document.createElement('div');
+    t.className = 'tab'+(i===0?' active':'');
+    t.textContent = v.name;
+    t.onclick = () => {
+      document.querySelectorAll('.tab').forEach((x,j)=>x.classList.toggle('active',j===i));
+      document.querySelectorAll('.panel').forEach((x,j)=>x.classList.toggle('active',j===i));
+    };
+    tabsEl.appendChild(t);
+
+    const p = document.createElement('div');
+    p.className = 'panel'+(i===0?' active':'');
+    p.innerHTML = `<div class="card"><div class="card-head"><span>${v.head}</span><span class="dots"><i class="live"></i><i></i><i></i></span></div><div class="card-body" style="max-height:80vh;overflow-y:auto;"><canvas id="${v.id}" width="1200" height="520"></canvas></div><div class="legend" id="leg-${v.id}"></div></div>`;
+    panelsEl.appendChild(p);
+  });
+}
+
+// =========================================================================
+// CANVAS HELPERS
+// =========================================================================
+function setupC(id,hOverride){const c=document.getElementById(id);const d=window.devicePixelRatio||1;const W=1200,H=hOverride||520;c.width=W*d;c.height=H*d;c.style.width=W+'px';c.style.height=H+'px';const x=c.getContext('2d');x.scale(d,d);return{ctx:x,W,H};}
+function leg(id,items){document.getElementById('leg-'+id).innerHTML=items.map(([c,l])=>`<div class="legend-item"><div class="legend-dot circle" style="background:${c}"></div>${l}</div>`).join('');}
+function shortFile(f){return f?f.split('/').pop():'';}
+
+// =========================================================================
+// RENDER ALL
+// =========================================================================
+function renderAll(){
+  if(!sessionData)return;
+  const D=sessionData;
+  const traces=D.traces;
+
+  // Build trace display names from dominant action type + file
+  function traceName(t){
+    const types={};t.nodes.forEach(n=>{types[n.action_type]=(types[n.action_type]||0)+1;});
+    const dominant=Object.entries(types).sort((a,b)=>b[1]-a[1])[0];
+    const files=new Set();t.nodes.forEach(n=>(n.files_touched||[]).forEach(f=>files.add(f.split('/').pop())));
+    const fileHint=files.size?[...files][0]:'';
+    const typeLabel={bash:'Shell',file_read:'Reader',file_write:'Writer',search:'Search',think:'Think'}[dominant?dominant[0]:'']||'Agent';
+    return fileHint?typeLabel+' ('+fileHint+')':typeLabel+' ×'+t.nodes.length;
+  }
+  traces.forEach(t=>{t.displayName=traceName(t);});
+  const traceLeg=traces.slice(0,8).map(t=>[t.color,t.displayName]);
+
+  // ===== WATERFALL =====
+  (function(){
+    const nodes=D.nodes;
+    const rowH=18;
+    const canvasH=Math.max(520, 40+nodes.length*rowH);
+    const{ctx,W,H}=setupC('waterfall',canvasH);
+    ctx.fillStyle='#f6f1e5';ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='rgba(27,26,23,0.03)';ctx.lineWidth=0.5;
+    for(let x=0;x<W;x+=8){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+    for(let y=0;y<H;y+=8){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+    const nameW=180,barStart=240,barEnd=W-20;
+    let cumLat=0;nodes.forEach(n=>cumLat+=n.latency_ms||0);
+    if(cumLat===0)cumLat=1;
+    const px=t=>barStart+(t/cumLat)*(barEnd-barStart);
+
+    ctx.font='600 9px JetBrains Mono';ctx.fillStyle='#6b6658';
+    ctx.fillText('SPAN',14,20);ctx.fillText('TIMELINE',barStart,20);
+    ctx.strokeStyle='#1b1a17';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(0,26);ctx.lineTo(W,26);ctx.stroke();
+
+    let t=0,lastTrace='';
+    nodes.forEach((n,i)=>{
+      const y=30+i*rowH;
+      const trace=traces.find(tr=>tr.nodes.includes(n));
+      const color=trace?trace.color:'#6b6658';
+
+      // Trace separator
+      if(n.trace_id!==lastTrace&&rowH>6){
+        ctx.strokeStyle='rgba(27,26,23,0.06)';ctx.lineWidth=0.5;
+        ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();
+        lastTrace=n.trace_id;
+      }
+
+      // Name (if room)
+      if(rowH>8){
+        ctx.font='400 '+Math.min(10,rowH-2)+'px JetBrains Mono';
+        ctx.fillStyle=n.status==='reverted'?'#c24d5c80':'#3a362d';
+        const label=(n.action_detail||n.action_type).slice(0,25);
+        ctx.fillText(label,8,y+rowH-2);
+      }
+
+      // Bar
+      const bx=px(t),bw=Math.max(1,px(t+(n.latency_ms||1))-bx);
+      const tc=TYPE_HEX[n.action_type]||color;
+      ctx.fillStyle=n.status==='reverted'?'#c24d5c20':tc+'20';
+      ctx.fillRect(bx,y+1,bw,rowH-2);
+      ctx.fillStyle=n.status==='reverted'?'#c24d5c':tc;
+      ctx.fillRect(bx,y+1,Math.min(2,bw),rowH-2);
+
+      // Reverted strikethrough
+      if(n.status==='reverted'&&bw>6){
+        ctx.strokeStyle='#c24d5c40';ctx.lineWidth=0.8;
+        ctx.beginPath();ctx.moveTo(bx,y+rowH/2);ctx.lineTo(bx+bw,y+rowH/2);ctx.stroke();
+      }
+
+      t+=n.latency_ms||0;
+    });
+
+    leg('waterfall',traceLeg);
+  })();
+
+  // ===== ORGANISM =====
+  (function(){
+    const laneH=60;
+    const padding=30;
+    const labelW=90;
+    const orgH=Math.max(520, padding*2+traces.length*laneH);
+    const{ctx,W,H}=setupC('organism',orgH);
+    ctx.fillStyle='#f6f1e5';ctx.fillRect(0,0,W,H);
+    // Fine grid
+    ctx.strokeStyle='rgba(27,26,23,0.02)';ctx.lineWidth=0.5;
+    for(let gx=0;gx<W;gx+=24){ctx.beginPath();ctx.moveTo(gx,0);ctx.lineTo(gx,H);ctx.stroke();}
+    for(let gy=0;gy<H;gy+=24){ctx.beginPath();ctx.moveTo(0,gy);ctx.lineTo(W,gy);ctx.stroke();}
+
+    const maxNodes=Math.max(1,...traces.map(t=>t.nodes.length));
+    const cellSpacing=Math.min(40,Math.max(14,(W-labelW-padding*2)/maxNodes));
+
+    traces.forEach((tr,ti)=>{
+      const laneY=padding+ti*laneH;
+      const laneCy=laneY+laneH/2;
+
+      // Lane separator
+      ctx.strokeStyle='rgba(27,26,23,0.04)';ctx.lineWidth=0.5;
+      ctx.beginPath();ctx.moveTo(0,laneY+laneH);ctx.lineTo(W,laneY+laneH);ctx.stroke();
+
+      // Trace label
+      ctx.font='600 9px Inter Tight';ctx.fillStyle=tr.color;
+      ctx.fillText(tr.displayName,8,laneCy+3);
+      ctx.font='400 7px JetBrains Mono';ctx.fillStyle='#9e9685';
+      ctx.fillText(tr.nodes.length+' events',8,laneCy+14);
+
+      // Backbone line
+      const startX=labelW;
+      const endX=startX+tr.nodes.length*cellSpacing;
+      ctx.strokeStyle=tr.color+'20';ctx.lineWidth=2;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(startX,laneCy);ctx.lineTo(endX,laneCy);ctx.stroke();
+
+      // Cells along backbone with organic wobble
+      tr.nodes.forEach((n,ni)=>{
+        const nx=startX+ni*cellSpacing+cellSpacing/2;
+        const wobbleY=Math.sin(ni*1.7+ti*3)*laneH*0.15;
+        const ny=laneCy+wobbleY;
+        const tc=TYPE_HEX[n.action_type]||tr.color;
+
+        // Dendrite from backbone to cell
+        ctx.strokeStyle=tr.color+(n.status==='reverted'?'15':'35');
+        ctx.lineWidth=Math.max(0.8,1.8-ni*0.03);ctx.lineCap='round';
+        ctx.beginPath();ctx.moveTo(nx,laneCy);ctx.lineTo(nx,ny);ctx.stroke();
+
+        // Connection to next cell
+        if(ni<tr.nodes.length-1){
+          const nx2=startX+(ni+1)*cellSpacing+cellSpacing/2;
+          const wobbleY2=Math.sin((ni+1)*1.7+ti*3)*laneH*0.15;
+          const ny2=laneCy+wobbleY2;
+          ctx.strokeStyle=tr.color+'18';ctx.lineWidth=1;
+          ctx.beginPath();
+          const cpx=(nx+nx2)/2;
+          ctx.moveTo(nx,ny);ctx.quadraticCurveTo(cpx,Math.min(ny,ny2)-5,nx2,ny2);
+          ctx.stroke();
+        }
+
+        // Cell size by latency
+        const r=3+Math.min(6,(n.latency_ms||0)/2000);
+
+        // Cell membrane
+        ctx.beginPath();ctx.arc(nx,ny,r+1.5,0,Math.PI*2);
+        ctx.strokeStyle=n.status==='reverted'?'#c24d5c60':tr.color+'40';ctx.lineWidth=1;ctx.stroke();
+
+        // Cell body
+        ctx.beginPath();ctx.arc(nx,ny,r,0,Math.PI*2);
+        ctx.fillStyle=n.status==='reverted'?'#c24d5c12':tc+'15';ctx.fill();
+
+        // Nucleus — size by action type
+        const nr=n.action_type==='file_write'?r*0.55:n.action_type==='bash'?r*0.4:r*0.3;
+        ctx.beginPath();ctx.arc(nx,ny,nr,0,Math.PI*2);
+        ctx.fillStyle=n.status==='reverted'?'#c24d5c':tc;
+        ctx.globalAlpha=0.5;ctx.fill();ctx.globalAlpha=1;
+
+        // Revert scar
+        if(n.status==='reverted'){
+          ctx.strokeStyle='#c24d5c50';ctx.lineWidth=1;
+          ctx.beginPath();ctx.moveTo(nx-r,ny-r);ctx.lineTo(nx+r,ny+r);ctx.stroke();
+          ctx.beginPath();ctx.moveTo(nx+r,ny-r);ctx.lineTo(nx-r,ny+r);ctx.stroke();
+        }
+      });
+    });
+
+    // Annotations
+    ctx.font='italic 10px Instrument Serif';ctx.fillStyle='#9e968560';
+    ctx.fillText('cell size = latency · nucleus = action type · ✕ = reverted',8,H-8);
+
+    leg('organism',traceLeg);
+  })();
+
+  // ===== DIFF THEATER =====
+  (function(){
+    const maxTouches=D.files.length?Math.max(...D.files.map(f=>D.nodes.filter(n=>(n.files_touched||[]).includes(f)).length)):0;
+    const diffH=Math.max(520, 70+maxTouches*30);
+    const{ctx,W,H}=setupC('difftheater',diffH);
+    ctx.fillStyle='#f6f1e5';ctx.fillRect(0,0,W,H);
+
+    if(D.files.length===0){ctx.font='italic 13px Instrument Serif';ctx.fillStyle='#9e9685';ctx.fillText('no file activity detected in this session',40,60);leg('difftheater',[]);return;}
+
+    const fileTouches={};
+    D.nodes.forEach(n=>(n.files_touched||[]).forEach(f=>{
+      if(!fileTouches[f])fileTouches[f]=[];
+      fileTouches[f].push(n);
+    }));
+    const sorted=Object.entries(fileTouches).sort((a,b)=>b[1].length-a[1].length).slice(0,6);
+    const colW=Math.min(190,(W-40)/sorted.length-10);
+
+    sorted.forEach(([fname,touches],fi)=>{
+      const x=20+fi*(colW+10);
+      ctx.strokeStyle='#1b1a17';ctx.lineWidth=1;ctx.strokeRect(x,20,colW,36);
+      ctx.font='600 9px JetBrains Mono';ctx.fillStyle='#1b1a17';
+      ctx.fillText(shortFile(fname),x+6,42);
+      ctx.font='400 8px JetBrains Mono';ctx.fillStyle='#9e9685';
+      ctx.fillText(touches.length+' touches',x+6,54);
+
+      touches.forEach((n,ti)=>{
+        const cy=68+ti*28;if(cy>H-20)return;
+        const trace=traces.find(t=>t.nodes.includes(n));
+        const color=trace?trace.color:'#6b6658';
+        const isRev=n.status==='reverted';
+        ctx.fillStyle=isRev?'#c24d5c06':color+'06';ctx.fillRect(x+4,cy,colW-8,24);
+        ctx.fillStyle=isRev?'#c24d5c':color;ctx.fillRect(x+4,cy,2,24);
+        if(isRev){ctx.strokeStyle='#c24d5c30';ctx.lineWidth=0.8;ctx.beginPath();ctx.moveTo(x+10,cy+12);ctx.lineTo(x+colW-10,cy+12);ctx.stroke();}
+        ctx.font='500 8px JetBrains Mono';ctx.fillStyle=isRev?'#c24d5c80':color;
+        ctx.fillText(n.action_type,x+10,cy+10);
+        ctx.font='400 7px JetBrains Mono';ctx.fillStyle='#9e9685';
+        ctx.fillText((n.latency_ms||0)+'ms',x+10,cy+20);
+      });
+    });
+
+    leg('difftheater',traceLeg);
+  })();
+
+  // ===== TERRITORY =====
+  (function(){
+    const{ctx,W,H}=setupC('territory');
+    ctx.fillStyle='#f6f1e5';ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='rgba(27,26,23,0.02)';ctx.lineWidth=0.5;
+    for(let x=0;x<W;x+=24){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+    for(let y=0;y<H;y+=24){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+    if(D.files.length===0){ctx.font='italic 13px Instrument Serif';ctx.fillStyle='#9e9685';ctx.fillText('no file paths detected',40,60);leg('territory',[]);return;}
+
+    // Group files by directory
+    const dirs={};
+    D.files.forEach(f=>{const parts=f.split('/');const dir=parts.length>1?parts.slice(0,-2).join('/')+'/'+parts[parts.length-2]+'/':'root/';dirs[dir]=dirs[dir]||[];dirs[dir].push(f);});
+
+    // Layout directories as neighborhoods
+    const dirList=Object.entries(dirs);
+    const cols=Math.ceil(Math.sqrt(dirList.length));
+    const cellW=(W-60)/cols,cellH=(H-60)/Math.ceil(dirList.length/cols);
+    const filePos={};
+
+    dirList.forEach(([dir,files],di)=>{
+      const col=di%cols,row=Math.floor(di/cols);
+      const dx=30+col*cellW,dy=30+row*cellH;
+
+      // Heat
+      let dirHeat=0;files.forEach(f=>{D.nodes.forEach(n=>{if((n.files_touched||[]).includes(f))dirHeat++;});});
+
+      ctx.strokeStyle=TRACE_COLORS[di%TRACE_COLORS.length]+'30';ctx.lineWidth=1;ctx.setLineDash([4,4]);
+      ctx.strokeRect(dx,dy,cellW-10,cellH-10);ctx.setLineDash([]);
+      ctx.font='600 8px JetBrains Mono';ctx.fillStyle=TRACE_COLORS[di%TRACE_COLORS.length]+'60';
+      ctx.fillText(dir.split('/').slice(-2).join('/'),dx+4,dy-4);
+
+      files.forEach((f,fi)=>{
+        const fx=dx+10+(fi%(Math.ceil(files.length/2)))*(cellW/3);
+        const fy=dy+20+Math.floor(fi/Math.ceil(files.length/2))*40;
+        const fHeat=D.nodes.filter(n=>(n.files_touched||[]).includes(f)).length;
+        const ha=Math.round(Math.min(1,fHeat/5)*40).toString(16).padStart(2,'0');
+
+        ctx.fillStyle=TRACE_COLORS[di%TRACE_COLORS.length]+ha;
+        ctx.fillRect(fx,fy,cellW/3-10,30);
+        ctx.strokeStyle=fHeat>2?'#1b1a17':'#1b1a1730';ctx.lineWidth=fHeat>2?1.2:0.6;
+        ctx.strokeRect(fx,fy,cellW/3-10,30);
+        ctx.font='400 7px JetBrains Mono';ctx.fillStyle=fHeat>2?'#1b1a17':'#9e9685';
+        ctx.fillText(shortFile(f),fx+3,fy+18);
+        filePos[f]={x:fx+cellW/6-5,y:fy+15};
+      });
+    });
+
+    // Agent trails
+    traces.forEach(tr=>{
+      const pts=[];
+      tr.nodes.forEach(n=>{(n.files_touched||[]).forEach(f=>{if(filePos[f])pts.push({...filePos[f],color:tr.color});});});
+      if(pts.length<2)return;
+      ctx.strokeStyle=tr.color+'50';ctx.lineWidth=1.5;ctx.lineCap='round';
+      ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
+      pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));ctx.stroke();
+      pts.forEach((p,i)=>{ctx.beginPath();ctx.arc(p.x,p.y,i===pts.length-1?3:1.5,0,Math.PI*2);ctx.fillStyle=tr.color+(i===pts.length-1?'':'60');ctx.fill();});
+    });
+
+    leg('territory',traceLeg);
+  })();
+
+  // ===== TOPO =====
+  (function(){
+    const{ctx,W,H}=setupC('topo');
+    ctx.fillStyle='#f6f1e5';ctx.fillRect(0,0,W,H);
+
+    if(D.files.length===0){ctx.font='italic 13px Instrument Serif';ctx.fillStyle='#9e9685';ctx.fillText('no file paths detected',40,60);leg('topo',[]);return;}
+
+    // Files as peaks
+    const fileCounts={};D.nodes.forEach(n=>(n.files_touched||[]).forEach(f=>{fileCounts[f]=(fileCounts[f]||0)+1;}));
+    const peaks=Object.entries(fileCounts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+    const maxCount=Math.max(...peaks.map(p=>p[1]),1);
+
+    peaks.forEach(([fname,count],pi)=>{
+      const cols=Math.ceil(Math.sqrt(peaks.length));
+      const px=80+(pi%cols)*((W-160)/cols)+((W-160)/cols)/2;
+      const py=80+Math.floor(pi/cols)*((H-120)/Math.ceil(peaks.length/cols))+((H-120)/Math.ceil(peaks.length/cols))/2;
+      const elevation=Math.ceil((count/maxCount)*6);
+      const peakColor=TRACE_COLORS[pi%TRACE_COLORS.length];
+
+      for(let c=elevation;c>=1;c--){
+        const cr=c*14;
+        ctx.beginPath();
+        for(let a=0;a<Math.PI*2;a+=0.05){
+          const wobble=Math.sin(a*3+c*1.7+pi)*cr*0.1;
+          ctx.lineTo(px+Math.cos(a)*(cr+wobble),py+Math.sin(a)*(cr+wobble)*0.8);
+        }
+        ctx.closePath();
+        ctx.fillStyle=peakColor;ctx.globalAlpha=(c/elevation)*0.12;ctx.fill();ctx.globalAlpha=1;
+        ctx.strokeStyle=peakColor+(c===elevation?'50':'20');ctx.lineWidth=c===elevation?1:0.5;ctx.stroke();
+      }
+
+      // Summit
+      ctx.beginPath();ctx.arc(px,py,2.5,0,Math.PI*2);ctx.fillStyle=peakColor;ctx.fill();
+      ctx.font='600 8px JetBrains Mono';ctx.fillStyle='#1b1a17';ctx.textAlign='center';
+      ctx.fillText(shortFile(fname),px,py-elevation*14-8);
+      ctx.font='400 7px JetBrains Mono';ctx.fillStyle='#6b6658';
+      ctx.fillText(count+' touches',px,py-elevation*14+2);
+      ctx.textAlign='left';
+    });
+
+    ctx.strokeStyle='#1b1a17';ctx.lineWidth=1;ctx.strokeRect(15,15,W-30,H-30);
+    leg('topo',traceLeg);
+  })();
+
+  // ===== EROSION (file-anchored · time-proportional · no multipliers) =====
+  (function(){
+    const{ctx,W,H}=setupC('erosion',1300);
+    ctx.fillStyle='#f6f1e5';ctx.fillRect(0,0,W,H);
+
+    const sculptX=340,sculptY=320,baseR=220;
+    const res=360;
+    const outline=new Array(res).fill(baseR);
+    const totalN=D.nodes.length||1;
+    const totalSessionLat=D.nodes.reduce((s,n)=>s+(n.latency_ms||0),0)||1;
+    // Max erosion depth = baseR * 0.7 (so shape never collapses to center)
+    const maxErosionBudget=baseR*0.7;
+
+    // === FILE-ANCHORED ANGULAR MAPPING WITH ATTRIBUTION ===
+    const allFiles=D.files.length?[...D.files].sort():[];
+
+    // Attribution: assign ambient (no-file) events to nearest file in same trace
+    const nodeFileMap=new Map(); // node -> attributed file
+    D.nodes.forEach(n=>{
+      const files=n.files_touched||[];
+      if(files.length){nodeFileMap.set(n,files[0]);return;}
+      // Find nearest file-touching event in same trace
+      const traceNodes=D.nodes.filter(m=>m.trace_id===n.trace_id);
+      const myIdx=traceNodes.indexOf(n);
+      // Search forward first (file this event is building toward)
+      for(let d=1;d<traceNodes.length;d++){
+        // Forward
+        if(myIdx+d<traceNodes.length){const fwd=traceNodes[myIdx+d];if((fwd.files_touched||[]).length){nodeFileMap.set(n,fwd.files_touched[0]);return;}}
+        // Backward
+        if(myIdx-d>=0){const bwd=traceNodes[myIdx-d];if((bwd.files_touched||[]).length){nodeFileMap.set(n,bwd.files_touched[0]);return;}}
+      }
+      nodeFileMap.set(n,null); // truly unattributable
+    });
+
+    // Build file slots (only files that have at least one attributed event)
+    const attributedFiles=new Set();
+    D.nodes.forEach(n=>{const f=nodeFileMap.get(n);if(f)attributedFiles.add(f);});
+    const fileSlots=[...attributedFiles].sort().map(f=>({name:f,type:'file'}));
+    const unattributed=D.nodes.filter(n=>!nodeFileMap.get(n));
+    if(unattributed.length)fileSlots.push({name:'(ambient)',type:'nofile'});
+
+    const nSlots=fileSlots.length||1;
+    const wedgeRes=Math.floor(res/nSlots);
+
+    // Per-file: count touches, track agents, compute erosion
+    const fileWedges=[];
+    const perFileErosion=[];
+
+    fileSlots.forEach((slot,fi)=>{
+      const startSeg=fi*wedgeRes;
+      const endSeg=Math.min(startSeg+wedgeRes,res);
+      const startAngle=(startSeg/res)*Math.PI*2-Math.PI/2;
+      const endAngle=(endSeg/res)*Math.PI*2-Math.PI/2;
+
+      // Nodes attributed to this file (including ambient attribution)
+      const nodes=slot.type==='nofile'
+        ?unattributed
+        :D.nodes.filter(n=>nodeFileMap.get(n)===slot.name);
+
+      // Agent colors touching this file
+      const agentColors=new Set();
+      nodes.forEach(n=>{const tr=traces.find(t=>t.nodes.includes(n));if(tr)agentColors.add(tr.color);});
+
+      fileWedges.push({slot,startSeg,endSeg,startAngle,endAngle,nodes,agentColors:[...agentColors]});
+
+      // Apply erosion — Option D: pure time proportion
+      // erosion_depth = (event_latency / total_session_latency) * maxErosionBudget
+      // No multipliers. Shape faithfully represents time distribution.
+      // Reverts vs effective distinguished visually, not by amplitude.
+      let fileErosionTotal=0;
+      nodes.forEach((n,ni)=>{
+        const seg=startSeg+Math.floor(ni*(endSeg-startSeg)/Math.max(1,nodes.length));
+        const spread=Math.max(3,Math.floor((endSeg-startSeg)/Math.max(1,nodes.length)/2));
+        const timeFrac=(n.latency_ms||1)/totalSessionLat;
+        const erosion=timeFrac*maxErosionBudget;
+
+        // Gaussian-ish spread around the event's angular position
+        for(let d=-spread;d<=spread;d++){
+          const i=Math.max(startSeg,Math.min(endSeg-1,(seg+d+res)%res));
+          const falloff=Math.cos((d/spread)*Math.PI*0.5);
+          outline[i]-=falloff*erosion;
+        }
+        fileErosionTotal+=erosion;
+      });
+      perFileErosion.push(fileErosionTotal);
+    });
+
+    // Smooth
+    const sm=outline.map((v,i)=>{let s=v*3,c=3;for(let d=1;d<=4;d++){s+=outline[(i+d)%res]*2+outline[(i-d+res)%res]*2;c+=4;}return Math.max(35,s/c);});
+
+    // === GEOMETRIC INFERENCE ===
+    const meanR=sm.reduce((s,v)=>s+v,0)/res;
+    const stdR=Math.sqrt(sm.reduce((s,v)=>s+(v-meanR)**2,0)/res);
+    const symmetry=1-Math.min(1,stdR/meanR*3);
+
+    let roughSum=0;for(let i=0;i<res;i++)roughSum+=Math.abs(sm[i]-sm[(i+1)%res]);
+    const smoothness=1-Math.min(1,(roughSum/res)/8);
+
+    let sculptArea=0;
+    for(let i=0;i<res;i++){const a1=(i/res)*Math.PI*2,a2=((i+1)/res)*Math.PI*2;sculptArea+=0.5*sm[i]*sm[(i+1)%res]*Math.sin(a2-a1);}
+    const hullArea=Math.PI*Math.max(...sm)**2;
+    const convexity=Math.min(1,sculptArea/Math.max(1,hullArea));
+
+    // Gini of per-file erosion
+    const sortedErosion=[...perFileErosion].sort((a,b)=>a-b);
+    const nG=sortedErosion.length;
+    let giniSum=0;sortedErosion.forEach((v,i)=>giniSum+=(2*(i+1)-nG-1)*v);
+    const gini=nG>1?giniSum/(nG*Math.max(1,sortedErosion.reduce((s,v)=>s+v,0))):0;
+
+    // File concentration: which file took most damage?
+    let maxErosionFile='',maxErosionVal=0;
+    fileSlots.forEach((slot,i)=>{if(perFileErosion[i]>maxErosionVal){maxErosionVal=perFileErosion[i];maxErosionFile=slot.name;}});
+
+    const retainedPct=Math.round(meanR/baseR*100);
+    const effectivePct=Math.round(D.nodes.filter(n=>n.status==='effective').length/totalN*100);
+    const revertCount=D.nodes.filter(n=>n.status==='reverted').length;
+
+    // === DRAW ===
+
+    // Ghost circle
+    ctx.beginPath();ctx.arc(sculptX,sculptY,baseR,0,Math.PI*2);
+    ctx.strokeStyle='rgba(27,26,23,0.03)';ctx.lineWidth=1;ctx.setLineDash([6,4]);ctx.stroke();ctx.setLineDash([]);
+
+    // Rock texture — layered sediment rings
+    for(let ring=0;ring<8;ring++){
+      const ringR=baseR*(0.3+ring*0.09);
+      ctx.beginPath();
+      for(let a=0;a<Math.PI*2;a+=0.02){
+        const wobble=Math.sin(a*6+ring*2.3)*3+Math.sin(a*11+ring)*1.5;
+        const segI=Math.floor(((a+Math.PI/2)/(Math.PI*2))*res+res)%res;
+        const r=Math.min(sm[segI],ringR+wobble);
+        a===0?ctx.moveTo(sculptX+Math.cos(a-Math.PI/2)*r,sculptY+Math.sin(a-Math.PI/2)*r):ctx.lineTo(sculptX+Math.cos(a-Math.PI/2)*r,sculptY+Math.sin(a-Math.PI/2)*r);
+      }
+      ctx.closePath();ctx.strokeStyle='rgba(27,26,23,'+(0.01+ring*0.004)+')';ctx.lineWidth=1.5;ctx.stroke();
+    }
+
+    // Grain particles
+    const seed=D.sid?D.sid.charCodeAt(0):42;
+    for(let gr=0;gr<500;gr++){
+      const ga=(seed+gr*2.399)%(Math.PI*2);
+      const grd=15+((seed*7+gr*7.31)%(baseR-20));
+      const segI=Math.floor(((ga+Math.PI/2)/(Math.PI*2))*res+res)%res;
+      if(grd<sm[segI]){
+        const gx=sculptX+Math.cos(ga)*grd,gy=sculptY+Math.sin(ga)*grd;
+        ctx.fillStyle='rgba(27,26,23,'+(0.008+((gr*3)%5)*0.003)+')';
+        ctx.fillRect(gx,gy,1+((gr*3)%4),0.5+((gr*7)%2)*0.5);
+      }
+    }
+
+    // Sculpture body — file-colored wedges
+    fileWedges.forEach(w=>{
+      const primaryColor=w.agentColors[0]||'#6b6658';
+      for(let seg=w.startSeg;seg<w.endSeg&&seg<res;seg++){
+        const a1=(seg/res)*Math.PI*2-Math.PI/2;
+        const a2=((seg+1)/res)*Math.PI*2-Math.PI/2;
+        const r1=sm[seg],r2=sm[(seg+1)%res];
+        ctx.beginPath();ctx.moveTo(sculptX,sculptY);
+        ctx.lineTo(sculptX+Math.cos(a1)*r1,sculptY+Math.sin(a1)*r1);
+        ctx.lineTo(sculptX+Math.cos(a2)*r2,sculptY+Math.sin(a2)*r2);
+        ctx.closePath();ctx.fillStyle=primaryColor+'0a';ctx.fill();
+      }
+    });
+
+    // Outline with rock edge feel
+    [['rgba(27,26,23,0.04)',5],['rgba(27,26,23,0.12)',2],['rgba(27,26,23,0.22)',1]].forEach(([col,lw])=>{
+      ctx.strokeStyle=col;ctx.lineWidth=lw;ctx.lineCap='round';ctx.lineJoin='round';
+      ctx.beginPath();
+      for(let i=0;i<res;i++){const a=(i/res)*Math.PI*2-Math.PI/2;i===0?ctx.moveTo(sculptX+Math.cos(a)*sm[i],sculptY+Math.sin(a)*sm[i]):ctx.lineTo(sculptX+Math.cos(a)*sm[i],sculptY+Math.sin(a)*sm[i]);}
+      ctx.closePath();ctx.stroke();
+    });
+
+    // Water erosion channels — trace paths as flowing water
+    traces.forEach(tr=>{
+      const trNodes=tr.nodes.filter(n=>(n.files_touched||[]).length);
+      if(trNodes.length<2)return;
+      const pts=[];
+      trNodes.forEach(n=>{
+        const file=(n.files_touched||[])[0];
+        const fi=fileSlots.findIndex(s=>s.name===file);
+        if(fi<0)return;
+        const midSeg=Math.floor((fileWedges[fi].startSeg+fileWedges[fi].endSeg)/2);
+        const a=(midSeg/res)*Math.PI*2-Math.PI/2;
+        const r=sm[midSeg]*0.85;
+        pts.push({x:sculptX+Math.cos(a)*r,y:sculptY+Math.sin(a)*r});
+      });
+      if(pts.length<2)return;
+
+      // Draw water channel
+      ctx.strokeStyle=tr.color+'20';ctx.lineWidth=3;ctx.lineCap='round';ctx.lineJoin='round';
+      ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
+      for(let i=1;i<pts.length;i++){
+        const p=pts[i],pp=pts[i-1];
+        const cpx=(pp.x+p.x)/2+(Math.sin(i*2.1))*8;
+        const cpy=(pp.y+p.y)/2+(Math.cos(i*1.7))*6;
+        ctx.quadraticCurveTo(cpx,cpy,p.x,p.y);
+      }
+      ctx.stroke();
+      // Inner bright channel
+      ctx.strokeStyle=tr.color+'12';ctx.lineWidth=1.5;
+      ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
+      for(let i=1;i<pts.length;i++){
+        const p=pts[i],pp=pts[i-1];
+        ctx.quadraticCurveTo((pp.x+p.x)/2,(pp.y+p.y)/2,p.x,p.y);
+      }
+      ctx.stroke();
+    });
+
+    // Surface event markers
+    fileWedges.forEach(w=>{
+      w.nodes.forEach((n,ni)=>{
+        const seg=w.startSeg+Math.floor(ni*(w.endSeg-w.startSeg)/Math.max(1,w.nodes.length));
+        const a=(seg/res)*Math.PI*2-Math.PI/2;
+        const r=sm[seg];
+        const sx=sculptX+Math.cos(a)*r,sy=sculptY+Math.sin(a)*r;
+        const tc=TYPE_HEX[n.action_type]||'#6b6658';
+        const mr=n.status==='reverted'?5:n.action_type==='file_write'?4:n.action_type==='bash'?3:2.5;
+        const trace=traces.find(t=>t.nodes.includes(n));
+
+        if(n.status==='reverted'){
+          const g=ctx.createRadialGradient(sx,sy,0,sx,sy,mr*3.5);
+          g.addColorStop(0,'#c24d5c20');g.addColorStop(1,'transparent');
+          ctx.fillStyle=g;ctx.fillRect(sx-mr*3.5,sy-mr*3.5,mr*7,mr*7);
+        }
+
+        ctx.beginPath();
+        if(n.action_type==='file_write'){ctx.moveTo(sx,sy-mr);ctx.lineTo(sx+mr,sy);ctx.lineTo(sx,sy+mr);ctx.lineTo(sx-mr,sy);ctx.closePath();}
+        else if(n.action_type==='bash'){ctx.rect(sx-mr*0.7,sy-mr*0.7,mr*1.4,mr*1.4);}
+        else{ctx.arc(sx,sy,mr,0,Math.PI*2);}
+        ctx.fillStyle=n.status==='reverted'?'#c24d5c50':tc+'30';ctx.fill();
+        ctx.strokeStyle=n.status==='reverted'?'#c24d5c':(trace?trace.color:tc)+'70';ctx.lineWidth=0.8;ctx.stroke();
+
+        if(n.status==='reverted'){
+          ctx.strokeStyle='#c24d5c70';ctx.lineWidth=1.5;
+          ctx.beginPath();ctx.moveTo(sx-mr,sy-mr);ctx.lineTo(sx+mr,sy+mr);ctx.stroke();
+          ctx.beginPath();ctx.moveTo(sx+mr,sy-mr);ctx.lineTo(sx-mr,sy+mr);ctx.stroke();
+        }
+      });
+    });
+
+    // === FILE LABELS around rim ===
+    fileWedges.forEach((w,fi)=>{
+      if(w.nodes.length===0&&w.slot.type==='file')return; // skip untouched files
+      const midA=(w.startAngle+w.endAngle)/2;
+      const labelR=baseR+22;
+      const lx=sculptX+Math.cos(midA)*labelR,ly=sculptY+Math.sin(midA)*labelR;
+      const midSeg=Math.floor((w.startSeg+w.endSeg)/2)%res;
+      const tickR=sm[midSeg]+3;
+
+      // Tick
+      ctx.strokeStyle='rgba(27,26,23,0.12)';ctx.lineWidth=0.5;
+      ctx.beginPath();ctx.moveTo(sculptX+Math.cos(midA)*tickR,sculptY+Math.sin(midA)*tickR);ctx.lineTo(lx,ly);ctx.stroke();
+
+      // File name
+      const isRight=midA>-Math.PI*0.3&&midA<Math.PI*0.7;
+      ctx.textAlign=isRight?'left':'right';
+      const lxOff=isRight?lx+5:lx-5;
+
+      ctx.font='600 7px JetBrains Mono';ctx.fillStyle='#1b1a17';
+      ctx.fillText(shortFile(w.slot.name),lxOff,ly-1);
+
+      // Touch stats
+      const writes=w.nodes.filter(n=>n.action_type==='file_write').length;
+      const reverts=w.nodes.filter(n=>n.status==='reverted').length;
+      ctx.font='400 6px JetBrains Mono';ctx.fillStyle='#9e9685';
+      let stat=w.nodes.length+'t';
+      if(writes)stat+=' '+writes+'w';
+      if(reverts)stat+=' '+reverts+'✕';
+      ctx.fillText(stat,lxOff,ly+8);
+
+      // Agent color dots
+      w.agentColors.slice(0,3).forEach((c,ci)=>{
+        ctx.beginPath();ctx.arc(lxOff+(isRight?ci*7:-ci*7),ly+15,2.5,0,Math.PI*2);
+        ctx.fillStyle=c;ctx.fill();
+      });
+      ctx.textAlign='left';
+
+      // Wedge boundary
+      ctx.strokeStyle='rgba(27,26,23,0.03)';ctx.lineWidth=0.5;ctx.setLineDash([2,4]);
+      ctx.beginPath();ctx.moveTo(sculptX+Math.cos(w.startAngle)*40,sculptY+Math.sin(w.startAngle)*40);
+      ctx.lineTo(sculptX+Math.cos(w.startAngle)*(baseR+4),sculptY+Math.sin(w.startAngle)*(baseR+4));ctx.stroke();ctx.setLineDash([]);
+    });
+
+    // === CENTER HUB ===
+    ctx.beginPath();ctx.arc(sculptX,sculptY,40,0,Math.PI*2);
+    ctx.fillStyle='#f6f1e5';ctx.fill();
+    ctx.strokeStyle='rgba(27,26,23,0.06)';ctx.lineWidth=1;ctx.stroke();
+    // Inner ring
+    ctx.beginPath();ctx.arc(sculptX,sculptY,36,0,Math.PI*2);
+    ctx.strokeStyle='rgba(27,26,23,0.03)';ctx.lineWidth=0.5;ctx.stroke();
+
+    ctx.textAlign='center';
+    ctx.font='800 28px JetBrains Mono';ctx.fillStyle=retainedPct>85?'#6b7a3a':retainedPct>60?'#e86a17':'#c24d5c';
+    ctx.fillText(retainedPct+'%',sculptX,sculptY+2);
+    ctx.font='600 6px JetBrains Mono';ctx.fillStyle='#9e9685';
+    ctx.fillText('RETAINED',sculptX,sculptY+16);
+    ctx.textAlign='left';
+
+    // === DAMAGE REPORT (top-left) ===
+    let annotCount=0;
+    ctx.font='700 9px JetBrains Mono';ctx.fillStyle='#c24d5c';ctx.fillText('DAMAGE REPORT',20,24);
+    ctx.strokeStyle='#c24d5c15';ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(20,28);ctx.lineTo(185,28);ctx.stroke();
+
+    fileWedges.forEach(w=>{
+      w.nodes.forEach((n,ni)=>{
+        if(n.status==='reverted'&&annotCount<6){
+          const seg=w.startSeg+Math.floor(ni*(w.endSeg-w.startSeg)/Math.max(1,w.nodes.length));
+          const a=(seg/res)*Math.PI*2-Math.PI/2;
+          const r=sm[seg];
+          const sx=sculptX+Math.cos(a)*r,sy=sculptY+Math.sin(a)*r;
+
+          const callY=36+annotCount*30;
+          ctx.strokeStyle='#c24d5c12';ctx.lineWidth=0.5;ctx.setLineDash([2,3]);
+          ctx.beginPath();ctx.moveTo(sx,sy);ctx.lineTo(190,callY+8);ctx.stroke();ctx.setLineDash([]);
+
+          ctx.fillStyle='#c24d5c04';ctx.strokeStyle='#c24d5c12';ctx.lineWidth=0.8;
+          ctx.beginPath();ctx.roundRect(20,callY-2,170,24,2);ctx.fill();ctx.stroke();
+          ctx.fillStyle='#c24d5c';ctx.fillRect(20,callY-2,2,24);
+
+          ctx.font='600 7px JetBrains Mono';ctx.fillStyle='#c24d5c';
+          ctx.fillText('✕ '+shortFile(w.slot.name),26,callY+8);
+          ctx.font='400 6px JetBrains Mono';ctx.fillStyle='#c24d5c70';
+          ctx.fillText((n.action_detail||n.action_type).slice(0,24),26,callY+18);
+          annotCount++;
+        }
+      });
+    });
+    if(annotCount===0){ctx.font='italic 9px Instrument Serif';ctx.fillStyle='#6b7a3a';ctx.fillText('no damage — pristine specimen',20,44);}
+
+    // === FULL INFERENCE ENGINE (right panel) — 7 analyses ===
+    const infX=sculptX+baseR+100,infY=20,infW=W-infX-16;
+
+    // --- Compute all 7 analyses ---
+
+    // 1. Shannon Entropy of erosion distribution
+    const totalErosion=perFileErosion.reduce((s,v)=>s+v,0)||1;
+    const probs=perFileErosion.map(v=>v/totalErosion);
+    let entropy=0;probs.forEach(p=>{if(p>0)entropy-=p*Math.log2(p);});
+    const maxEntropy=Math.log2(nSlots||1)||1;
+    const normEntropy=entropy/maxEntropy;
+
+
+
+    // 3. Erosion velocity (cumulative erosion over angular position)
+    const erosionVelocity=[];
+    for(let i=0;i<res;i++){erosionVelocity.push(Math.max(0,baseR-sm[i]));}
+    // Find spike regions (local maxima of velocity derivative)
+    const velSpikes=[];
+    for(let i=2;i<res-2;i++){
+      const deriv=erosionVelocity[i]-erosionVelocity[i-2];
+      if(deriv>15&&erosionVelocity[i]>20){
+        // Map back to file
+        const fileIdx=Math.floor(i/wedgeRes);
+        if(fileIdx<fileSlots.length)velSpikes.push({seg:i,file:fileSlots[fileIdx].name,magnitude:erosionVelocity[i]});
+      }
+    }
+
+    // 4. Session embedding (360-float vector = the smoothed radii, normalized)
+    const embeddingNorm=Math.sqrt(sm.reduce((s,v)=>s+v*v,0));
+    // (We compute it but display it as "embedding available")
+
+    // 5. KL divergence placeholder (needs baseline — show formula + note)
+    // 6. Efficiency frontier placeholder (needs multi-session — show formula + note)
+
+    // 7. Erosion trend (first half vs second half)
+    const firstHalf=sm.slice(0,res/2).reduce((s,v)=>s+v,0)/(res/2);
+    const secondHalf=sm.slice(res/2).reduce((s,v)=>s+v,0)/(res/2);
+    const trend=firstHalf>secondHalf?'backloaded':firstHalf<secondHalf?'frontloaded':'even';
+    const trendDelta=Math.abs(firstHalf-secondHalf)/meanR;
+
+    // --- Draw inference panel ---
+
+    // Helper: draw metric row
+    let panelY=infY;
+    function section(title){
+      ctx.strokeStyle='#1b1a1715';ctx.lineWidth=0.5;ctx.beginPath();ctx.moveTo(infX,panelY);ctx.lineTo(infX+infW,panelY);ctx.stroke();
+      ctx.font='700 8px JetBrains Mono';ctx.fillStyle='#1b1a17';ctx.fillText(title,infX,panelY+12);
+      panelY+=18;
+    }
+    function metric(label,value,pct,desc,color){
+      ctx.font='600 8px Inter Tight';ctx.fillStyle='#1b1a17';ctx.fillText(label,infX,panelY+10);
+      ctx.font='700 12px JetBrains Mono';ctx.fillStyle=color;
+      ctx.fillText(typeof pct==='string'?pct:Math.round(pct*100)+'%',infX+infW-40,panelY+10);
+      // Bar
+      const barW=infW-48,barH=4,barX=infX,barY=panelY+15;
+      ctx.fillStyle='rgba(27,26,23,0.03)';ctx.fillRect(barX,barY,barW,barH);
+      const fillW=value*barW;
+      const g=ctx.createLinearGradient(barX,barY,barX+fillW,barY);
+      g.addColorStop(0,color+'40');g.addColorStop(1,color+'15');
+      ctx.fillStyle=g;ctx.fillRect(barX,barY,fillW,barH);
+      ctx.fillStyle=color;ctx.fillRect(barX,barY,fillW,1.5);
+      ctx.font='italic 7px Instrument Serif';ctx.fillStyle='#9e9685';
+      ctx.fillText(desc,infX,panelY+26);
+      panelY+=34;
+    }
+
+    // §1 GEOMETRIC PROPERTIES
+    section('§1 GEOMETRIC PROPERTIES');
+    metric('Symmetry (CV)',symmetry,symmetry,symmetry>0.8?'damage spread evenly across files':'concentrated in specific files',symmetry>0.8?'#6b7a3a':symmetry>0.5?'#e86a17':'#c24d5c');
+    metric('Smoothness',smoothness,smoothness,smoothness>0.7?'gradual, controlled changes':'sharp gouges — reverts/thrashing',smoothness>0.7?'#6b7a3a':smoothness>0.4?'#e86a17':'#c24d5c');
+    metric('Convexity',convexity,convexity,convexity>0.7?'surface intact':'concavities from repeated damage',convexity>0.7?'#6b7a3a':convexity>0.4?'#e86a17':'#c24d5c');
+
+    // §2 INFORMATION THEORY
+    section('§2 INFORMATION THEORY');
+    const entropyColor=normEntropy>0.7?'#6b7a3a':normEntropy>0.4?'#e86a17':'#c24d5c';
+    metric('Shannon Entropy',normEntropy,normEntropy,normEntropy>0.7?'unpredictable damage spread (good — no fixation)':'predictable — agent fixated on few files',entropyColor);
+    const giniVal=1-Math.abs(gini);
+    metric('File Balance (1-Gini)',giniVal,giniVal,Math.abs(gini)<0.3?'work distributed across codebase':'one file took most damage'+(maxErosionFile?' ('+shortFile(maxErosionFile)+')':''),Math.abs(gini)<0.3?'#6b7a3a':Math.abs(gini)<0.6?'#e86a17':'#c24d5c');
+
+    // §3 EROSION DYNAMICS
+    section('§3 EROSION DYNAMICS');
+    // Velocity sparkline
+    const sparkH=35,sparkW=infW;
+    ctx.strokeStyle='rgba(27,26,23,0.04)';ctx.lineWidth=0.5;
+    ctx.beginPath();ctx.moveTo(infX,panelY+sparkH);ctx.lineTo(infX+sparkW,panelY+sparkH);ctx.stroke();
+    const maxVel=Math.max(...erosionVelocity,1);
+    // Fill under curve
+    ctx.beginPath();ctx.moveTo(infX,panelY+sparkH);
+    for(let i=0;i<res;i++){const sx=infX+(i/res)*sparkW;const sy=panelY+sparkH-(erosionVelocity[i]/maxVel)*sparkH;ctx.lineTo(sx,sy);}
+    ctx.lineTo(infX+sparkW,panelY+sparkH);ctx.closePath();
+    ctx.fillStyle='#c24d5c08';ctx.fill();
+    // Line
+    ctx.strokeStyle='#c24d5c60';ctx.lineWidth=1;ctx.lineCap='round';
+    ctx.beginPath();
+    for(let i=0;i<res;i++){const sx=infX+(i/res)*sparkW;const sy=panelY+sparkH-(erosionVelocity[i]/maxVel)*sparkH;i===0?ctx.moveTo(sx,sy):ctx.lineTo(sx,sy);}
+    ctx.stroke();
+    // File labels on x-axis
+    fileWedges.forEach((w,fi)=>{
+      if(w.nodes.length===0)return;
+      const midSeg=(w.startSeg+w.endSeg)/2;
+      const sx=infX+(midSeg/res)*sparkW;
+      ctx.strokeStyle=w.agentColors[0]||'#6b6658';ctx.lineWidth=0.5;
+      ctx.beginPath();ctx.moveTo(sx,panelY+sparkH);ctx.lineTo(sx,panelY+sparkH+3);ctx.stroke();
+    });
+    // Spike annotations
+    velSpikes.slice(0,3).forEach(spike=>{
+      const sx=infX+(spike.seg/res)*sparkW;
+      const sy=panelY+sparkH-(spike.magnitude/maxVel)*sparkH;
+      ctx.fillStyle='#c24d5c';ctx.beginPath();ctx.arc(sx,sy,2.5,0,Math.PI*2);ctx.fill();
+    });
+    panelY+=sparkH+4;
+    ctx.font='italic 7px Instrument Serif';ctx.fillStyle='#9e9685';
+    ctx.fillText('erosion intensity by file position · peaks = damage hotspots',infX,panelY+8);panelY+=12;
+
+    // Trend
+    ctx.font='600 8px Inter Tight';ctx.fillStyle='#1b1a17';
+    ctx.fillText('Trend: '+trend.toUpperCase()+' (Δ'+Math.round(trendDelta*100)+'%)',infX,panelY+10);
+    ctx.font='italic 7px Instrument Serif';ctx.fillStyle='#9e9685';
+    const trendDesc=trend==='frontloaded'?'early files took more damage — agent improved':'backloaded'?'later files took more damage — agent degraded':'even distribution across file positions';
+    ctx.fillText(trendDesc,infX,panelY+22);panelY+=28;
+
+    // §5 EMBEDDING & COMPARISON
+    section('§4 EMBEDDING & SIMILARITY');
+    ctx.font='400 7px JetBrains Mono';ctx.fillStyle='#3a362d';
+    ctx.fillText('r(θ) → '+res+'-dim vector · L2 norm: '+embeddingNorm.toFixed(1),infX,panelY+8);panelY+=12;
+    ctx.font='italic 7px Instrument Serif';ctx.fillStyle='#9e9685';
+    ctx.fillText('cosine similarity between sessions enables:',infX,panelY+4);panelY+=11;
+    ctx.fillText('· nearest-neighbor: "find sessions like this"',infX,panelY+4);panelY+=10;
+    ctx.fillText('· clustering: group sessions by erosion pattern',infX,panelY+4);panelY+=10;
+    ctx.fillText('· anomaly detection: flag unusual shapes',infX,panelY+4);panelY+=10;
+    ctx.fillText('· KL divergence from repo baseline (needs N sessions)',infX,panelY+4);panelY+=16;
+
+    // §6 PER-FILE EROSION BREAKDOWN
+    section('§5 FILE EROSION BREAKDOWN');
+    const barMaxW=infW-10;
+    const maxFileE=Math.max(...perFileErosion,1);
+    fileSlots.forEach((slot,fi)=>{
+      if(perFileErosion[fi]===0)return;
+      const bw=(perFileErosion[fi]/maxFileE)*barMaxW*0.7;
+      const primaryColor=fileWedges[fi].agentColors[0]||'#6b6658';
+      const reverts=fileWedges[fi].nodes.filter(n=>n.status==='reverted').length;
+
+      ctx.fillStyle=primaryColor+'18';ctx.fillRect(infX,panelY,bw,10);
+      ctx.fillStyle=primaryColor;ctx.fillRect(infX,panelY,1.5,10);
+      ctx.font='500 7px JetBrains Mono';ctx.fillStyle='#3a362d';
+      ctx.fillText(shortFile(slot.name),infX+bw+4,panelY+8);
+      if(reverts){ctx.font='600 6px JetBrains Mono';ctx.fillStyle='#c24d5c';ctx.fillText(reverts+'✕',infX+bw+4+ctx.measureText(shortFile(slot.name)).width+6,panelY+8);}
+      // Erosion amount
+      ctx.font='400 6px JetBrains Mono';ctx.fillStyle='#9e9685';
+      ctx.fillText(Math.round(perFileErosion[fi]),infX+bw-ctx.measureText(Math.round(perFileErosion[fi])+'').width-3,panelY+8);
+      panelY+=14;
+    });
+
+    // === LEGEND (below sculpture) ===
+    const legY=sculptY+baseR+30;
+    ctx.strokeStyle='#1b1a17';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(20,legY);ctx.lineTo(sculptX+baseR+40,legY);ctx.stroke();
+
+    const legItems=[
+      {shape:'diamond',label:'write',color:'#e86a17'},
+      {shape:'square',label:'bash',color:'#1d6b6b'},
+      {shape:'circle',label:'read',color:'#3a6ba0'},
+      {shape:'x',label:'reverted',color:'#c24d5c'},
+      {shape:'wave',label:'water trace',color:'#6b6658'},
+    ];
+    let lx=24;
+    legItems.forEach(item=>{
+      const iy=legY+16;
+      if(item.shape==='diamond'){ctx.beginPath();ctx.moveTo(lx,iy-4);ctx.lineTo(lx+4,iy);ctx.lineTo(lx,iy+4);ctx.lineTo(lx-4,iy);ctx.closePath();ctx.fillStyle=item.color+'60';ctx.fill();ctx.strokeStyle=item.color;ctx.lineWidth=0.8;ctx.stroke();}
+      else if(item.shape==='square'){ctx.fillStyle=item.color+'60';ctx.fillRect(lx-3,iy-3,6,6);ctx.strokeStyle=item.color;ctx.lineWidth=0.8;ctx.strokeRect(lx-3,iy-3,6,6);}
+      else if(item.shape==='circle'){ctx.beginPath();ctx.arc(lx,iy,3,0,Math.PI*2);ctx.fillStyle=item.color+'60';ctx.fill();ctx.strokeStyle=item.color;ctx.lineWidth=0.8;ctx.stroke();}
+      else if(item.shape==='x'){ctx.strokeStyle=item.color;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(lx-3,iy-3);ctx.lineTo(lx+3,iy+3);ctx.stroke();ctx.beginPath();ctx.moveTo(lx+3,iy-3);ctx.lineTo(lx-3,iy+3);ctx.stroke();}
+      else{ctx.strokeStyle=item.color+'40';ctx.lineWidth=2;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(lx-5,iy);ctx.quadraticCurveTo(lx-2,iy-3,lx,iy);ctx.quadraticCurveTo(lx+2,iy+3,lx+5,iy);ctx.stroke();}
+      ctx.font='400 7px JetBrains Mono';ctx.fillStyle='#6b6658';ctx.fillText(item.label,lx+7,iy+3);
+      lx+=ctx.measureText(item.label).width+20;
+    });
+
+    // Verdict
+    const verdict=retainedPct>90?'PRISTINE':retainedPct>75?'WELL-CRAFTED':retainedPct>60?'WEATHERED':retainedPct>40?'ERODED':'SWISS CHEESE';
+    const verdictColor=retainedPct>75?'#6b7a3a':retainedPct>50?'#e86a17':'#c24d5c';
+    ctx.font='700 13px JetBrains Mono';ctx.fillStyle=verdictColor;ctx.fillText(verdict,24,legY+38);
+    ctx.font='400 8px JetBrains Mono';ctx.fillStyle='#6b6658';
+    ctx.fillText(retainedPct+'% retained · '+effectivePct+'% effective · '+revertCount+' reverts · H='+entropy.toFixed(2)+' bits',24,legY+52);
+    ctx.font='italic 7px Instrument Serif';ctx.fillStyle='#9e968570';
+    ctx.fillText('angle = file · depth = time fraction · no multipliers · area eroded ∝ wall-clock time spent on file',24,legY+66);
+
+    leg('erosion',traceLeg);
+  })();
+}
+
+// =========================================================================
+// BOOT
+// =========================================================================
+loadSessionList();
+</script>
+</body>
+</html>

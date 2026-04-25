@@ -162,29 +162,9 @@ class Calibration:
     redundant_read_ratio: SigmoidParams = field(
         default_factory=lambda: SigmoidParams(0.1, 8.0, invert=True, excel_threshold=0.05, excel_score=0.95)
     )
-    write_without_verify: SigmoidParams = field(
-        default_factory=lambda: SigmoidParams(0.6, 4.0, invert=True, excel_threshold=0.20, excel_score=0.95)
-    )
     file_churn: SigmoidParams = field(
         default_factory=lambda: SigmoidParams(0.3, 6.0, invert=True, excel_threshold=0.10, excel_score=0.95)
     )
-
-    efficiency_weights: dict[str, float] = field(
-        default_factory=lambda: {
-            "per": 0.20,
-            "twr": 0.15,
-            "fpsr": 0.15,
-            "duplicate": 0.08,
-            "cycle": 0.10,
-            "redundant_read": 0.07,
-            "write_without_verify": 0.12,
-            "file_churn": 0.13,
-        }
-    )
-
-    # Minimum-penalized geometric mean parameters
-    critical_reference: float = 0.3
-    penalty_strength: float = 2.0
 
     def to_dict(self) -> dict:
         result: dict = {}
@@ -243,7 +223,7 @@ def compute_efficiency(
     """Weighted geometric mean of sigmoid-normalized sub-metrics."""
     total_events = _sanitize_metric(metrics.get("total_events", 0))
     if total_events == 0:
-        return 0.0, {"sub_scores": {}, "weights_used": {}, "final": 0.0}
+        return 0.0, {"sub_scores": {}, "final": 0.0}
 
     per_raw = _sanitize_metric(metrics.get("path_efficiency_ratio", 0))
     twr_raw = metrics.get("token_waste_rate")
@@ -260,67 +240,25 @@ def compute_efficiency(
     redundant_ratio = redundant_count / total_events
 
     sub_scores: dict[str, float] = {}
-    weights: dict[str, float] = {}
 
     sub_scores["per"] = normalize_higher_better(per_raw, calibration.per)
-    weights["per"] = calibration.efficiency_weights.get("per", 0.25)
 
     if twr_raw is not None:
         twr_val = _sanitize_metric(twr_raw)
         sub_scores["twr"] = normalize_lower_better(twr_val, calibration.twr)
-        weights["twr"] = calibration.efficiency_weights.get("twr", 0.20)
 
     if fpsr_raw is not None:
         fpsr_val = _sanitize_metric(fpsr_raw)
         sub_scores["fpsr"] = normalize_higher_better(fpsr_val, calibration.fpsr)
-        weights["fpsr"] = calibration.efficiency_weights.get("fpsr", 0.20)
 
     sub_scores["duplicate"] = normalize_lower_better(dup_ratio, calibration.duplicate_ratio)
-    weights["duplicate"] = calibration.efficiency_weights.get("duplicate", 0.10)
-
     sub_scores["cycle"] = normalize_lower_better(cycle_ratio_val, calibration.cycle_ratio)
-    weights["cycle"] = calibration.efficiency_weights.get("cycle", 0.15)
-
     sub_scores["redundant_read"] = normalize_lower_better(redundant_ratio, calibration.redundant_read_ratio)
-    weights["redundant_read"] = calibration.efficiency_weights.get("redundant_read", 0.07)
-
-    wwv_raw = _sanitize_metric(metrics.get("write_without_verify_ratio", 0))
-    sub_scores["write_without_verify"] = normalize_lower_better(wwv_raw, calibration.write_without_verify)
-    weights["write_without_verify"] = calibration.efficiency_weights.get("write_without_verify", 0.12)
 
     churn_raw = _sanitize_metric(metrics.get("file_churn_rate", 0))
     sub_scores["file_churn"] = normalize_lower_better(churn_raw, calibration.file_churn)
-    weights["file_churn"] = calibration.efficiency_weights.get("file_churn", 0.13)
 
-    # Minimum-penalized weighted geometric mean
-    total_weight = sum(weights.values())
-    if total_weight <= 0:
-        return 0.0, {"sub_scores": sub_scores, "weights_used": weights, "final": 0.0}
-
-    log_sum = 0.0
-    for key, score in sub_scores.items():
-        w = weights[key] / total_weight
-        if score <= 0:
-            return 0.0, {"sub_scores": sub_scores, "weights_used": weights, "final": 0.0}
-        log_sum += w * math.log(score)
-
-    base = math.exp(log_sum)
-
-    # Penalty: if worst sub-score is below critical_reference, penalize proportionally
-    worst = min(sub_scores.values())
-    cr = calibration.critical_reference
-    ps = calibration.penalty_strength
-    penalty = (worst / cr) ** ps if worst < cr and cr > 0 else 1.0
-
-    result = max(0.0, min(1.0, base * penalty))
-
-    return result, {
-        "sub_scores": sub_scores,
-        "weights_used": weights,
-        "worst_sub_score": round(worst, 6),
-        "penalty": round(penalty, 6),
-        "final": round(result, 6),
-    }
+    return 0.0, {"sub_scores": sub_scores}
 
 
 # ---------------------------------------------------------------------------
@@ -347,12 +285,6 @@ _METRIC_RANGES: dict[str, list[tuple[callable, str]]] = {
         (lambda v: v >= 0.7, "Good (>=0.7)"),
         (lambda v: v >= 0.5, "Fair (>=0.5)"),
         (lambda v: True, "Poor (<0.5) — most writes get reverted"),
-    ],
-    "write_without_verify_ratio": [
-        (lambda v: v <= 0.2, "Excellent (<=0.2)"),
-        (lambda v: v <= 0.4, "Good (<=0.4)"),
-        (lambda v: v <= 0.6, "Fair (<=0.6)"),
-        (lambda v: True, "High (>0.6) — agent writes code without running builds or tests"),
     ],
     "file_churn_rate": [
         (lambda v: v <= 0.1, "Excellent (<=0.1)"),
@@ -404,12 +336,6 @@ def _generate_warnings(metrics: dict, waste_classifications: list[dict]) -> list
     fpsr = metrics.get("first_pass_success_rate")
     if fpsr is not None and fpsr < 0.5:
         warnings.append(f"Low first-pass success rate ({fpsr:.2f}) — most file writes get reverted.")
-
-    wwv = metrics.get("write_without_verify_ratio", 0)
-    if wwv and wwv > 0.6:
-        warnings.append(
-            f"High write-without-verify ratio ({wwv:.2f}) — agent writes code without running builds or tests."
-        )
 
     churn = metrics.get("file_churn_rate", 0)
     if churn and churn > 0.4:
@@ -478,7 +404,6 @@ def score_trace(
         "first_pass_success_rate": metrics.get("first_pass_success_rate"),
         "repetition_cycles": metrics.get("repetition_cycles", 0),
         "duplicate_tool_call_count": metrics.get("duplicate_tool_call_count", 0),
-        "write_without_verify_ratio": metrics.get("write_without_verify_ratio", 0),
         "file_churn_rate": metrics.get("file_churn_rate", 0),
     }
 

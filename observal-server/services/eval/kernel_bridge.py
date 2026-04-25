@@ -131,10 +131,23 @@ def _events_to_spans(events: list[dict]) -> list[dict]:
             key = (r["attrs"].get("prompt.id", ""), r["attrs"].get("tool_name", ""))
             result_lookup.setdefault(key, []).append(r)
 
+        # Build hook lookup by tool_use_id for enrichment
+        hook_pre_by_tuid: dict[str, dict] = {}
+        for hp in hook_pre:
+            tuid = hp["attrs"].get("tool_use_id", "")
+            if tuid:
+                hook_pre_by_tuid[tuid] = hp
+        hook_post_by_tuid: dict[str, dict] = {}
+        for hp in hook_post:
+            tuid = hp["attrs"].get("tool_use_id", "")
+            if tuid:
+                hook_post_by_tuid[tuid] = hp
+
         for dec in decisions:
             tool = dec["attrs"].get("tool_name", "")
             prompt_id = dec["attrs"].get("prompt.id", "")
             dec_seq = int(dec["attrs"].get("event.sequence", "0") or "0")
+            dec_tuid = dec["attrs"].get("tool_use_id", "")
 
             matched_result = None
             key = (prompt_id, tool)
@@ -162,20 +175,31 @@ def _events_to_spans(events: list[dict]) -> list[dict]:
                 if matched_result["attrs"].get("success", "true") == "false":
                     status = "error"
 
+            # Enrich from hook events via tool_use_id
+            span_input = dec["attrs"].get("tool_input", "")
+            span_output = ""
+            if dec_tuid:
+                hook_pre_match = hook_pre_by_tuid.get(dec_tuid)
+                if hook_pre_match and not span_input:
+                    span_input = hook_pre_match["attrs"].get("tool_input", "")
+                hook_post_match = hook_post_by_tuid.get(dec_tuid)
+                if hook_post_match:
+                    span_output = hook_post_match["attrs"].get("tool_response", "")
+
             spans.append(
                 {
                     "name": tool,
                     "start_time": dec["ts"],
                     "end_time": end_ts,
-                    "input": dec["attrs"].get("tool_input", ""),
-                    "output": "",
+                    "input": span_input,
+                    "output": span_output,
                     "latency_ms": duration_ms,
                     "status": status,
                     "prompt_id": prompt_id,
                 }
             )
 
-    # Pair hook_pretooluse + hook_posttooluse
+    # Pair hook_pretooluse + hook_posttooluse (fallback when no tool_decision events)
     if hook_pre and not decisions:
         post_lookup: dict[str, list[dict]] = {}
         for hp in hook_post:

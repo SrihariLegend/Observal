@@ -192,17 +192,6 @@ _PACKAGE_INSTALL_RE = re.compile(
     re.IGNORECASE,
 )
 
-_VERIFY_COMMAND_RE = re.compile(
-    r"(?:pytest|jest|mocha|vitest|npm\s+test|npm\s+run|yarn\s+test|"
-    r"cargo\s+test|go\s+test|make\s+test|python\s+-m\s+pytest|"
-    r"node\s|npx\s|tsc|eslint|flake8|mypy|"
-    r"npm\s+start|npm\s+run\s+dev|npm\s+run\s+build|npm\s+create|"
-    r"cargo\s+build|cargo\s+check|go\s+build|make\b|cmake\b|"
-    r"Start-Process\b|Invoke-Expression\b|& npm\b|& node\b|"
-    r"python\s|python3\s|ruby\s|java\s|javac\s|gcc\s|g\+\+\s)",
-    re.IGNORECASE,
-)
-
 
 # ---------------------------------------------------------------------------
 # 1.7 Multi-Language Semantic Hasher
@@ -312,81 +301,182 @@ def _is_code_identifier(token: str) -> bool:
     return bool(has_upper and has_lower)
 
 
+_H3_TOKEN_RE = re.compile(r"[\w./:@\-]{4,}")
+
+
+def _tokenize(text: str) -> set[str]:
+    if not text:
+        return set()
+    return {t for t in _H3_TOKEN_RE.findall(text) if _is_code_identifier(t)}
+
+
 def reconstruct_causal_edges(raw_events: list[RawEvent], max_lookback: int = 20) -> list[TraceEvent]:
     """
-    Infer parent_ids from raw events using three heuristics:
+    Infer parent_ids from raw events using four heuristics:
 
-    1. DATA-FLOW: If event B reads/touches file F, and event A was the most
-       recent write to F, then A → B.
-    2. TEMPORAL RECENCY: If no data-flow parent is found, the immediately
-       preceding event is the parent (sequential fallback).
-    3. OUTPUT-REFERENCE: If event B's action_detail contains a substring
-       that appeared in event A's output_text (file paths, error messages),
-       then A → B.
-
-    This produces a DAG that approximates true causal structure from
-    observable signals alone — no agent internals needed.
+    1. DATA-FLOW: If event B touches file F that event A last wrote, A → B.
+    2. BASH-REFERENCE: If a BASH event names a file path that was written, link.
+    3. OUTPUT-REFERENCE: If event B's action_detail shares non-ubiquitous
+       tokens with event A's output_text AND they share a trace_id (or have
+       explicit handoff evidence), A → B.  Cross-trace token matches without
+       handoff evidence are suppressed to prevent false causal edges between
+       parallel agents sharing common project vocabulary.
+    4. TEMPORAL FALLBACK: If no parent found, link to most recent prior event
+       that is not temporally parallel from a different trace.
     """
+    if not raw_events:
+        return []
+
     sorted_events = sorted(raw_events, key=lambda e: (e.timestamp_ms, e.node_id))
-    # Track last writer per file
+    n = len(sorted_events)
+
+    # --- Assign trace group (tau) for each event ---
+    tau: list[str] = [""] * n
+    anon_counter = 0
+    i = 0
+    while i < n:
+        e = sorted_events[i]
+        if e.trace_id and e.trace_id.strip():
+            tau[i] = e.trace_id
+            i += 1
+        else:
+            block_id = f"_anon_{anon_counter}"
+            anon_counter += 1
+            while i < n and (not sorted_events[i].trace_id or not sorted_events[i].trace_id.strip()):
+                tau[i] = block_id
+                i += 1
+
+    # --- Ubiquity filter for H3 ---
+    output_tokens: list[set[str]] = [_tokenize(e.output_text) for e in sorted_events]
+    detail_tokens: list[set[str]] = [_tokenize(e.action_detail) for e in sorted_events]
+
+    ubiquitous: set[str] = set()
+    if n > 5:
+        threshold = 0.4 * n
+        token_count: dict[str, int] = {}
+        for toks in output_tokens:
+            for t in toks:
+                token_count[t] = token_count.get(t, 0) + 1
+        ubiquitous = {t for t, cnt in token_count.items() if cnt >= threshold}
+
+    filtered_output: list[set[str]] = [toks - ubiquitous for toks in output_tokens]
+
+    # --- Per-trace index for handoff detection ---
+    trace_first_idx: dict[str, int] = {}
+    trace_indices: dict[str, list[int]] = {}
+    for idx_val in range(n):
+        t = tau[idx_val]
+        if t not in trace_first_idx:
+            trace_first_idx[t] = idx_val
+        trace_indices.setdefault(t, []).append(idx_val)
+
+    # --- Helpers ---
+    def latency_of(idx_val: int) -> int:
+        lms = sorted_events[idx_val].latency_ms
+        return lms if lms is not None and lms > 0 else 0
+
+    def is_temporally_parallel(a: int, b: int) -> bool:
+        ea, eb = sorted_events[a], sorted_events[b]
+        return eb.timestamp_ms <= ea.timestamp_ms + latency_of(a)
+
+    def has_handoff(a: int, b: int) -> bool:
+        ea = sorted_events[a]
+        eb = sorted_events[b]
+        node_str = str(ea.node_id)
+        if node_str in eb.action_detail:
+            return True
+        if trace_first_idx.get(tau[b]) == b:
+            idxs = trace_indices.get(tau[a], [])
+            for k in reversed(idxs):
+                if sorted_events[k].timestamp_ms < eb.timestamp_ms:
+                    if k == a and not is_temporally_parallel(a, b):
+                        return True
+                    break
+        return False
+
+    # --- Build edges ---
+    parents_list: list[set[int]] = [set() for _ in range(n)]
+    edges_added: set[tuple[int, int]] = set()
+
+    def add_edge(parent_idx: int, child_idx: int) -> None:
+        if parent_idx >= child_idx:
+            return
+        pid = sorted_events[parent_idx].node_id
+        cid = sorted_events[child_idx].node_id
+        key = (pid, cid)
+        if key in edges_added:
+            return
+        edges_added.add(key)
+        parents_list[child_idx].add(pid)
+
+    # H1 — Data-flow: last writer per file
     last_writer: dict[str, int] = {}
-    # Track output text index for reference matching
-    output_index: dict[int, str] = {}
-    # Track file paths mentioned in outputs
-
-    result: list[TraceEvent] = []
-
-    for idx, raw in enumerate(sorted_events):
-        parents: set[int] = set()
-
-        # Heuristic 1: DATA-FLOW — file read/write depends on last writer
+    for idx_val, raw in enumerate(sorted_events):
         for f in raw.files_touched:
             if f in last_writer:
-                parents.add(last_writer[f])
-
-        # Heuristic 2: BASH that mentions a file depends on last writer
-        if raw.action_type == ActionType.BASH:
-            for f, writer_id in last_writer.items():
-                if f in raw.action_detail:
-                    parents.add(writer_id)
-
-        # Heuristic 3: OUTPUT-REFERENCE — scan recent outputs for references
-        if raw.action_detail and idx > 0:
-            lookback_start = max(0, idx - max_lookback)
-            for prev_idx in range(lookback_start, idx):
-                prev = sorted_events[prev_idx]
-                prev_out = prev.output_text
-                if not prev_out:
-                    continue
-                # Check if current action references content from prev output
-                # Extract identifiers: file paths, package names, symbols (>=4 chars)
-                # Filter: must look like a code identifier (contains / . _ - digit
-                # or mixed case) to avoid matching plain English words like "Error"
-                detail_tokens = re.findall(r"[\w./\-]{4,}", raw.action_detail)
-                for token in detail_tokens:
-                    if not _is_code_identifier(token):
-                        continue
-                    if token in prev_out:
-                        parents.add(prev.node_id)
-                        break
-
-        # Heuristic 4: TEMPORAL FALLBACK — if no causal parent found,
-        # link to immediately preceding event
-        if not parents and idx > 0:
-            parents.add(sorted_events[idx - 1].node_id)
-
-        # Update file state
+                add_edge(last_writer[f], idx_val)
         if raw.action_type in (ActionType.FILE_WRITE, ActionType.FILE_DELETE):
             for f in raw.files_touched:
-                last_writer[f] = raw.node_id
+                last_writer[f] = idx_val
 
-        # Store output for future reference matching
-        if raw.output_text:
-            output_index[raw.node_id] = raw.output_text
+    # H2 — Bash names a previously-written file path
+    all_written_files: dict[str, list[int]] = {}
+    for idx_val, raw in enumerate(sorted_events):
+        if raw.action_type in (ActionType.FILE_WRITE, ActionType.FILE_DELETE):
+            for f in raw.files_touched:
+                all_written_files.setdefault(f, []).append(idx_val)
+    for j in range(n):
+        if sorted_events[j].action_type != ActionType.BASH:
+            continue
+        detail = sorted_events[j].action_detail
+        for f, writers in all_written_files.items():
+            if f in detail:
+                for w in writers:
+                    if w < j:
+                        add_edge(w, j)
 
+    # H3 — Output-reference (trace-scoped with ubiquity filter)
+    for j in range(1, n):
+        r_j = detail_tokens[j] - ubiquitous
+        if not r_j:
+            continue
+        lookback_start = max(0, j - max_lookback)
+        for i_val in range(lookback_start, j):
+            if not filtered_output[i_val]:
+                continue
+            if not (filtered_output[i_val] & r_j):
+                continue
+            if is_temporally_parallel(i_val, j) and tau[i_val] != tau[j]:
+                continue
+            if tau[i_val] == tau[j]:
+                add_edge(i_val, j)
+            else:
+                if has_handoff(i_val, j):
+                    add_edge(i_val, j)
+
+    # H4 — Temporal fallback: prefer same-trace predecessor, then any non-parallel
+    for j in range(1, n):
+        if parents_list[j]:
+            continue
+        # First pass: most recent same-trace predecessor
+        for k in range(j - 1, -1, -1):
+            if tau[k] == tau[j]:
+                add_edge(k, j)
+                break
+        if parents_list[j]:
+            continue
+        # Second pass: most recent predecessor that isn't parallel cross-trace
+        for k in range(j - 1, -1, -1):
+            if not is_temporally_parallel(k, j) or tau[k] == tau[j]:
+                add_edge(k, j)
+                break
+
+    # --- Build TraceEvent results ---
+    result: list[TraceEvent] = []
+    for idx_val, raw in enumerate(sorted_events):
         ev = TraceEvent(
             node_id=raw.node_id,
-            parent_ids=sorted(parents),
+            parent_ids=sorted(parents_list[idx_val]),
             timestamp_ms=raw.timestamp_ms,
             action_type=raw.action_type,
             action_detail=raw.action_detail,
@@ -922,54 +1012,6 @@ def unresolved_error_count(dag: TraceDAG, resolution_window: int = 5) -> int:
     return count
 
 
-def write_without_verify_ratio(dag: TraceDAG) -> float:
-    """Fraction of write batches not followed by a verify command.
-
-    A "batch" is a run of writes separated only by reads, searches, or thinks
-    (normal interleaving during development). A BASH event breaks the batch.
-    A batch is "verified" if any BASH event between the batch end and the next
-    batch matches a build/test/run command.
-    """
-    sorted_ids = sorted(dag.events.keys())
-    if not sorted_ids:
-        return 0.0
-
-    batch_break_types = {ActionType.BASH}
-    batches: list[tuple[int, int]] = []
-    batch_start = None
-    batch_end = None
-    for i, nid in enumerate(sorted_ids):
-        ev = dag.events[nid]
-        if ev.action_type == ActionType.FILE_WRITE:
-            if batch_start is None:
-                batch_start = i
-            batch_end = i
-        elif ev.action_type in batch_break_types:
-            if batch_start is not None:
-                batches.append((batch_start, batch_end))
-                batch_start = None
-                batch_end = None
-    if batch_start is not None:
-        batches.append((batch_start, batch_end))
-
-    if not batches:
-        return 0.0
-
-    unverified = 0
-    for _, last_write_idx in batches:
-        verified = False
-        for j in range(last_write_idx + 1, len(sorted_ids)):
-            future_ev = dag.events[sorted_ids[j]]
-            if future_ev.action_type == ActionType.FILE_WRITE:
-                break
-            if future_ev.action_type == ActionType.BASH and _VERIFY_COMMAND_RE.search(future_ev.action_detail):
-                verified = True
-                break
-        if not verified:
-            unverified += 1
-
-    return unverified / len(batches)
-
 
 def file_churn_rate(dag: TraceDAG) -> float:
     file_hashes: dict[str, list[str]] = defaultdict(list)
@@ -1192,7 +1234,6 @@ def compute_all_metrics(dag: TraceDAG) -> dict:
         "distinct_target_count": len(distinct_targets),
         "build_error_count": build_error_count(dag),
         "unresolved_error_count": unresolved_error_count(dag),
-        "write_without_verify_ratio": round(write_without_verify_ratio(dag), 4),
         "file_churn_rate": round(file_churn_rate(dag), 4),
         "orphan_dependency_count": orphan_dependency_count(dag),
         "final_session_success": final_session_success(dag),
