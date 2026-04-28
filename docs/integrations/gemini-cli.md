@@ -15,8 +15,7 @@ Gemini CLI is supported at the MCP, rules, hook bridge, and OTLP telemetry level
 curl -fsSL https://raw.githubusercontent.com/BlazeUp-AI/Observal/main/install.sh | bash
 observal auth login
 
-observal scan --ide gemini-cli                     # see what's there
-observal doctor patch --all --ide gemini-cli        # instrument it
+observal doctor patch --all --ide gemini-cli        # instrument MCP servers
 observal doctor --ide gemini-cli                    # verify
 ```
 
@@ -40,5 +39,5 @@ Writes MCP config + rules files. OTLP telemetry and hooks are configured automat
 
 ## Related
 
-* [`observal scan`](../cli/scan.md)
+* [`observal doctor`](../cli/doctor.md)
 * [Use Cases → Observe MCP traffic](../use-cases/observe-mcp-traffic.md)

@@ -17,8 +17,7 @@ VS Code (with MCP-aware extensions) is supported at the MCP and rules level.
 curl -fsSL https://raw.githubusercontent.com/BlazeUp-AI/Observal/main/install.sh | bash
 observal auth login
 
-observal scan --ide vscode                         # see what's there
-observal doctor patch --all --ide vscode            # instrument it
+observal doctor patch --all --ide vscode            # instrument MCP servers
 observal doctor --ide vscode                        # verify
 ```
 
@@ -41,4 +40,4 @@ observal pull <agent-id> --ide vscode
 
 ## Related
 
-* [`observal scan`](../cli/scan.md)
+* [`observal doctor`](../cli/doctor.md)

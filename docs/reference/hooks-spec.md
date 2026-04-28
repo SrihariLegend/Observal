@@ -60,7 +60,7 @@ Observal writes a `_observal` key into hook matcher groups so subsequent runs of
 {
   "_observal": {
     "version": "5",
-    "source": "observal-scan",
+    "source": "observal-pull",
     "installed_at": "2026-04-21T14:30:55Z"
   },
   "PreToolUse": [ ... ]

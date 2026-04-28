@@ -12,7 +12,7 @@ observal doctor [--ide <ide>] [--fix]
 
 | Option | Description |
 | --- | --- |
-| `--ide <ide>` | Scope to one IDE: `claude-code`, `kiro`, `cursor`, `vscode`, `gemini-cli`, `codex`, `copilot` |
+| `--ide <ide>` | Scope to one IDE: `claude-code`, `kiro`, `cursor`, `gemini-cli`, `copilot`, `copilot-cli`, `opencode`, `codex` |
 | `--fix` | Auto-apply suggested fixes |
 
 ## What it checks
@@ -192,6 +192,38 @@ Restart your IDE to pick up the new config.
 | 1 | Server unreachable / auth failed |
 | 3 | No IDE configs found |
 
+---
+
+# observal doctor cleanup
+
+Remove stale backups, orphaned shim entries, and unused hook configurations left behind by previous `doctor patch` or `pull` runs.
+
+## Synopsis
+
+```bash
+observal doctor cleanup [--dry-run]
+```
+
+## Options
+
+| Option | Description |
+| --- | --- |
+| `--dry-run` | Print what would be removed without deleting anything |
+
+## Example
+
+```bash
+observal doctor cleanup --dry-run
+# Would remove: ~/.claude/settings.json.20260315_091200.bak
+# Would remove: .kiro/settings/mcp.json.20260315_091200.bak
+# 2 file(s) would be removed.
+
+observal doctor cleanup
+# Removed 2 stale backup(s).
+```
+
+---
+
 ## Undo
 
 Each modified file has a `.bak`. Restore manually:
@@ -202,6 +234,5 @@ mv ~/.claude/settings.json.20260421_143055.bak ~/.claude/settings.json
 
 ## Related
 
-* [`observal scan`](scan.md) -- read-only discovery of what's installed
 * [`observal pull`](pull.md) -- install a full agent (also wires up MCP servers)
 * [Use Cases -- Observe MCP traffic](../use-cases/observe-mcp-traffic.md) -- narrative walkthrough

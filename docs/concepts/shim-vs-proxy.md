@@ -103,6 +103,5 @@ The tradeoff: we can't observe things that don't go through MCP. For those, Obse
 ## Related
 
 * [`observal doctor patch`](../cli/doctor.md) -- the command that wires the shim/proxy in
-* [`observal scan`](../cli/scan.md) -- read-only discovery of what's installed
 * [Data model](data-model.md) — what a span looks like after the shim records it
 * [Telemetry pipeline](../self-hosting/telemetry-pipeline.md) — the rest of the path from span to ClickHouse

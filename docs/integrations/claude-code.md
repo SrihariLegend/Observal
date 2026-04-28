@@ -17,16 +17,13 @@ Claude Code is the most complete integration. Native OpenTelemetry traces and lo
 curl -fsSL https://raw.githubusercontent.com/BlazeUp-AI/Observal/main/install.sh | bash
 observal auth login
 
-# 2. Discover what MCP servers you have
-observal scan --ide claude-code
-
-# 3. Instrument them (hooks + shims + OTel)
+# 2. Instrument your MCP servers (hooks + shims + OTel)
 observal doctor patch --all --ide claude-code
 
-# 4. (Optional) pull an agent from the registry
+# 3. (Optional) pull an agent from the registry
 observal pull <agent-id> --ide claude-code
 
-# 5. Verify
+# 4. Verify
 observal doctor --ide claude-code
 ```
 
@@ -110,5 +107,5 @@ This drops a directory into `.claude/skills/` that Claude Code loads on demand.
 ## Related
 
 * [`observal pull`](../cli/pull.md)
-* [`observal scan`](../cli/scan.md)
+* [`observal doctor`](../cli/doctor.md)
 * [Data model](../concepts/data-model.md)

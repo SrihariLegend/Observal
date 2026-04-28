@@ -20,8 +20,7 @@ If these matter, use Claude Code or Kiro instead.
 curl -fsSL https://raw.githubusercontent.com/BlazeUp-AI/Observal/main/install.sh | bash
 observal auth login
 
-observal scan --ide cursor                         # see what's there
-observal doctor patch --all --ide cursor            # instrument it
+observal doctor patch --all --ide cursor            # instrument MCP servers
 observal doctor --ide cursor                        # verify
 ```
 
@@ -51,5 +50,5 @@ Cursor reloads MCP on the next prompt — you may need to restart Cursor for a c
 
 ## Related
 
-* [`observal scan`](../cli/scan.md)
+* [`observal doctor`](../cli/doctor.md)
 * [Use Cases → Observe MCP traffic](../use-cases/observe-mcp-traffic.md)

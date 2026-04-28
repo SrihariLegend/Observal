@@ -7,7 +7,7 @@ By the end of this guide you will have:
 * The Observal CLI installed
 * An Observal server running locally
 * The CLI logged in as an admin
-* At least one MCP server instrumented
+* An agent created, published, and pulled into your IDE
 * A live trace visible in the web UI
 
 ## 1. Install the CLI
@@ -31,16 +31,19 @@ cp .env.example .env
 docker compose -f docker/docker-compose.yml up --build -d
 ```
 
-That's it. The `.env.example` ships with working defaults. Seven containers come up:
+That's it. The `.env.example` ships with working defaults. Ten services come up:
 
 | Service | URL |
 | --- | --- |
+| Init (migrations) | exits after setup |
 | API (FastAPI + OTLP ingestion) | `http://localhost:8000` |
 | Web UI (Next.js) | `http://localhost:3000` |
 | Postgres | `localhost:5432` |
 | ClickHouse | `localhost:8123` |
 | Redis | `localhost:6379` |
-| Worker | internal |
+| Worker (arq) | internal |
+| Load Balancer (nginx) | internal |
+| Prometheus | `http://localhost:9090` |
 | Grafana | `http://localhost:3001` |
 
 The API waits for Postgres, ClickHouse, and Redis to pass health checks before starting — expect 15–30 seconds. Confirm it is up:
@@ -80,31 +83,51 @@ observal auth whoami
 # → super@demo.example (super_admin)
 ```
 
-## 4. Discover and instrument your IDE
+## 4. Create and publish an agent
 
-If you already have MCP servers configured in Claude Code, Kiro, Cursor, VS Code, or Gemini CLI, first see what's there:
+Create an agent using the interactive wizard:
 
 ```bash
-observal scan
+observal agent create
 ```
 
-Expected output:
+The wizard prompts for a name, description, and which MCP servers / skills / hooks to bundle. Give it a name like `my-first-agent` and include at least one MCP server.
 
-```
-Claude Code (~/.claude/settings.json)
-  filesystem        npx @modelcontextprotocol/server-filesystem   not wrapped
-  github            npx @modelcontextprotocol/server-github       not wrapped
+Alternatively, use the YAML workflow:
 
-Kiro (.kiro/settings/mcp.json)
-  mcp-obsidian      mcp-obsidian                                  not wrapped
-
-2 IDE(s) found, 3 MCP server(s) total, 0 wrapped.
+```bash
+observal agent init                        # scaffold observal-agent.yaml
+observal agent add mcp <mcp-name>          # add a component
+observal agent build                       # validate against the server
+observal agent publish                     # submit to the registry
 ```
 
-`scan` is read-only -- it shows what you have without modifying anything. Now instrument everything:
+Verify it appears in the registry:
+
+```bash
+observal agent list
+```
+
+## 5. Pull the agent into your IDE
+
+Install the agent you just published:
+
+```bash
+observal pull my-first-agent --ide claude-code
+```
+
+This drops agent files, skills, hooks, and MCP configs into the right places for your IDE and wires up telemetry automatically.
+
+If you have other MCP servers already configured that are not part of an agent, instrument them too:
 
 ```bash
 observal doctor patch --all --all-ides
+```
+
+Preview what will change first (no files modified):
+
+```bash
+observal doctor patch --all --all-ides --dry-run
 ```
 
 Expected output:
@@ -126,21 +149,17 @@ Backups saved:
 3 server(s) instrumented, hooks installed across 2 IDE(s).
 ```
 
-What `doctor patch --all` did:
+Verify the instrumentation is healthy:
 
-* Found your existing MCP config files (`~/.claude/settings.json`, `.kiro/settings/mcp.json`, `.cursor/mcp.json`, etc.)
-* Rewrote the config so every MCP server runs through `observal-shim` (transparent -- no behavior change)
-* Installed telemetry hooks for session lifecycle events
-* Configured OTel export where supported
-* Saved a timestamped `.bak` next to every file it touched
+```bash
+observal doctor --ide claude-code
+```
 
-Nothing broke. Your agents still work exactly as before. The only difference: every tool call now generates a span.
+Restart your IDE to pick up the new config.
 
-Restart your IDE to pick up the new config. The next MCP call will produce a trace.
+## 6. See your first trace
 
-## 5. See your first trace
-
-Open `http://localhost:3000/traces` in your browser. Trigger anything in your IDE that uses an MCP tool (ask Claude to list files, read a GitHub issue, whatever). Refresh — you'll see the trace appear.
+Trigger anything in your IDE that uses an MCP tool (ask Claude to list files, read a GitHub issue, whatever). Open `http://localhost:3000/traces` in your browser and refresh -- you will see the trace appear.
 
 Or use the CLI:
 
@@ -148,28 +167,11 @@ Or use the CLI:
 observal ops traces --limit 5
 ```
 
-Drill in:
+Drill into a trace:
 
 ```bash
 observal ops spans <trace-id>
 ```
-
-## 6. (Optional) Pull an agent
-
-Browse what the community has published:
-
-```bash
-observal agent list
-observal agent show <agent-id>
-```
-
-Install one into your IDE:
-
-```bash
-observal pull <agent-id> --ide claude-code
-```
-
-This drops agent files, skills, hooks, and MCP configs into the right places for your IDE and wires up telemetry automatically.
 
 ## What you just built
 

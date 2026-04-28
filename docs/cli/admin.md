@@ -9,6 +9,9 @@ Admin commands. Requires the `admin` or `super_admin` role.
 * [Evaluation engine](#evaluation-engine)
 * [Penalty and weight tuning](#penalty-and-weight-tuning)
 * [Canary injection (eval integrity)](#canary-injection-eval-integrity)
+* [SSO and SCIM (enterprise)](#sso-and-scim-enterprise)
+* [Security and audit (enterprise)](#security-and-audit-enterprise)
+* [Diagnostics and maintenance](#diagnostics-and-maintenance)
 
 ---
 
@@ -19,8 +22,10 @@ Admin commands. Requires the `admin` or `super_admin` role.
 | `admin settings` | List server settings |
 | `admin set <key> <value>` | Update a server setting |
 | `admin users` | List all users |
+| `admin create-user` | Create a new user account |
 | `admin reset-password <email>` | Reset a user's password (interactive or `--generate`) |
 | `admin delete-user <email>` | Permanently delete a user account |
+| `admin set-role <email> <role>` | Change a user's role |
 
 ### Examples
 
@@ -32,7 +37,9 @@ observal admin users
 observal admin reset-password alice@example.com
 observal admin reset-password alice@example.com --generate   # auto-generate
 
+observal admin create-user --email alice@example.com --role user
 observal admin delete-user abandoned@example.com
+observal admin set-role alice@example.com reviewer
 ```
 
 ---
@@ -149,6 +156,71 @@ observal admin canary-reports code-reviewer
 ```
 
 See [Evaluate and compare agents → Eval integrity: canaries](../use-cases/evaluate-agents.md#eval-integrity-canaries).
+
+---
+
+## SSO and SCIM (enterprise)
+
+Requires `DEPLOYMENT_MODE=enterprise`.
+
+| Command | Description |
+| --- | --- |
+| `admin saml-config` | Show current SAML SSO configuration |
+| `admin saml-config-set <key> <value>` | Update a SAML configuration value |
+| `admin saml-config-delete` | Remove SAML SSO configuration |
+| `admin scim-tokens` | List active SCIM provisioning tokens |
+| `admin scim-token-create` | Create a new SCIM bearer token |
+| `admin scim-token-revoke <token-id>` | Revoke a SCIM token |
+
+### Examples
+
+```bash
+observal admin saml-config
+observal admin saml-config-set idp_entity_id https://idp.example.com
+observal admin saml-config-delete
+
+observal admin scim-tokens
+observal admin scim-token-create
+observal admin scim-token-revoke <token-id>
+```
+
+---
+
+## Security and audit (enterprise)
+
+| Command | Description |
+| --- | --- |
+| `admin security-events` | List recent security events (failed logins, role changes, etc.) |
+| `admin audit-log` | View the audit log |
+| `admin audit-log-export` | Export the audit log as CSV |
+| `admin trace-privacy` | Show current trace privacy setting |
+| `admin trace-privacy-set <on\|off>` | Enable or disable trace privacy (users see only their own traces) |
+
+### Examples
+
+```bash
+observal admin security-events
+observal admin audit-log
+observal admin audit-log-export > audit.csv
+observal admin trace-privacy
+observal admin trace-privacy-set on
+```
+
+---
+
+## Diagnostics and maintenance
+
+| Command | Description |
+| --- | --- |
+| `admin diagnostics` | Run server health checks (DB, ClickHouse, Redis, JWT keys, enterprise config) |
+| `admin cache-clear` | Clear server-side caches |
+
+### Examples
+
+```bash
+observal admin diagnostics
+observal admin cache-clear
+```
 
 ## Related
 

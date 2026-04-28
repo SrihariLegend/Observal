@@ -13,7 +13,7 @@ observal pull <agent-id-or-name> --ide <ide> [OPTIONS]
 | Argument / option | Description |
 | --- | --- |
 | `<agent-id-or-name>` | Agent UUID, name, `@alias`, or row number from last `agent list` |
-| `--ide <ide>` | Target IDE: `claude-code`, `kiro`, `cursor`, `vscode`, `gemini-cli`, `codex`, `copilot` |
+| `--ide <ide>` | Target IDE: `claude-code`, `kiro`, `cursor`, `vscode`, `gemini-cli`, `codex`, `copilot`, `opencode` |
 
 ## Options
 
@@ -24,6 +24,7 @@ observal pull <agent-id-or-name> --ide <ide> [OPTIONS]
 | `--scope project\|user` | Claude Code / Kiro / Gemini: install at project or user scope |
 | `--model inherit\|sonnet\|opus\|haiku` | Claude Code only: sub-agent model (default: `inherit`) |
 | `--tools <list>` | Claude Code only: comma-separated tool allowlist |
+| `--no-prompt` | Suppress the agent's custom post-install prompt |
 | `--yes` / `-y` | Skip confirmation prompts |
 
 ## What gets installed
@@ -103,7 +104,6 @@ After pull, restart the IDE so it picks up the new config. Telemetry starts flow
 ## Related
 
 * [`observal agent`](agent.md) — author and publish agents
-* [`observal scan`](scan.md) -- discover the MCP servers you already have (read-only)
 * [`observal doctor patch`](doctor.md) -- instrument your IDEs (hooks, shims, OTel)
 * [`observal doctor`](doctor.md) — verify the pull wired up correctly
 * [Use Cases → Share agent configs across IDEs](../use-cases/share-agent-configs.md)

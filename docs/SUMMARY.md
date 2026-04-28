@@ -22,15 +22,15 @@
 * [Overview](cli/README.md)
 * [observal auth](cli/auth.md)
 * [observal config](cli/config.md)
-* [observal scan](cli/scan.md)
 * [observal pull](cli/pull.md)
+* [observal use / profile](cli/profile.md)
 * [observal registry](cli/registry.md)
 * [observal agent](cli/agent.md)
 * [observal ops](cli/ops.md)
 * [observal admin](cli/admin.md)
 * [observal doctor](cli/doctor.md)
-* [observal profile](cli/profile.md)
 * [observal self](cli/self.md)
+* [observal migrate](cli/migrate.md)
 
 ## Self-Hosting
 
@@ -46,6 +46,7 @@
 * [Upgrades](self-hosting/upgrades.md)
 * [Backup and restore](self-hosting/backup-and-restore.md)
 * [Troubleshooting](self-hosting/troubleshooting.md)
+* [AWS EC2 deployment](self-hosting/aws-ec2.md)
 
 ## Integrations
 
@@ -56,6 +57,7 @@
 * [Gemini CLI](integrations/gemini-cli.md)
 * [VS Code](integrations/vscode.md)
 * [Codex CLI](integrations/codex-cli.md)
+* [Copilot CLI](integrations/copilot-cli.md)
 
 ## Concepts
 

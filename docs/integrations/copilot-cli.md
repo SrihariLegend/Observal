@@ -35,10 +35,7 @@ observal auth login
 ### 3. Discover and instrument Copilot CLI
 
 ```bash
-# See what MCP servers are configured
-observal scan --ide copilot-cli
-
-# Instrument them (hooks + shims + OTel)
+# Instrument MCP servers (hooks + shims + OTel)
 observal doctor patch --all --ide copilot-cli
 ```
 
@@ -170,5 +167,4 @@ which observal-shim
 ## Related
 
 * [`observal pull`](../cli/pull.md)
-* [`observal scan`](../cli/scan.md)
 * [`observal doctor`](../cli/doctor.md)

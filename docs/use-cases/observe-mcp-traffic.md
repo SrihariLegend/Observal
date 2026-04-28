@@ -17,13 +17,7 @@ Spans stream into ClickHouse in near real-time. You query them from the web UI o
 
 ## Discover and instrument an existing setup
 
-If you already have MCP servers configured in Claude Code, Kiro, Cursor, VS Code, or Gemini CLI, first see what's there:
-
-```bash
-observal scan
-```
-
-`scan` is read-only -- it lists your MCP servers without modifying anything. Then instrument them:
+If you already have MCP servers configured in Claude Code, Kiro, Cursor, VS Code, or Gemini CLI, instrument them:
 
 ```bash
 observal doctor patch --all --all-ides

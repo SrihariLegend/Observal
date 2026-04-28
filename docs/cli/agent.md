@@ -7,10 +7,12 @@ Create, author, and publish agents. An agent bundles registry components (MCPs, 
 | Command | Description |
 | --- | --- |
 | [`agent create`](#observal-agent-create) | Interactive agent creation wizard |
+| [`agent bulk-create`](#observal-agent-bulk-create) | Create multiple agents from a YAML manifest |
 | [`agent list`](#observal-agent-list) | List agents |
 | [`agent show`](#observal-agent-show) | Show an agent's details and components |
 | [`agent install`](#observal-agent-install) | Install an agent into an IDE (see also [`observal pull`](pull.md)) |
 | [`agent delete`](#observal-agent-delete) | Delete an agent |
+| [`agent unarchive`](#observal-agent-unarchive) | Restore an archived agent |
 | [`agent init`](#observal-agent-init) | Scaffold `observal-agent.yaml` in the current directory |
 | [`agent add`](#observal-agent-add) | Add a component to the local `observal-agent.yaml` |
 | [`agent build`](#observal-agent-build) | Validate an agent against the server (dry-run) |
@@ -24,6 +26,16 @@ Interactive wizard. Prompts for name, description, which MCP servers / skills / 
 
 ```bash
 observal agent create
+```
+
+---
+
+## `observal agent bulk-create`
+
+Create multiple agents from a YAML manifest. Useful for seeding a registry or migrating agents in batch.
+
+```bash
+observal agent bulk-create <manifest.yaml>
 ```
 
 ---
@@ -60,6 +72,16 @@ observal agent install <id-or-name> --ide <ide>
 
 ```bash
 observal agent delete <id-or-name> [--yes]
+```
+
+---
+
+## `observal agent unarchive`
+
+Restore an archived agent, making it visible in the registry again.
+
+```bash
+observal agent unarchive <id-or-name>
 ```
 
 ---

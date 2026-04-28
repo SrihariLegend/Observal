@@ -7,11 +7,11 @@ Authentication and account management.
 | Command | Description |
 | --- | --- |
 | [`auth login`](#observal-auth-login) | Log in to an Observal server (auto-creates admin on fresh server) |
-| [`auth register`](#observal-auth-register) | Self-register a new account with email + password |
 | [`auth logout`](#observal-auth-logout) | Clear saved credentials |
 | [`auth whoami`](#observal-auth-whoami) | Show the authenticated user |
 | [`auth status`](#observal-auth-status) | Check server connectivity, health, and local telemetry buffer |
-| [`auth reset-password`](#observal-auth-reset-password) | Reset a forgotten password |
+| [`auth change-password`](#observal-auth-change-password) | Change the password for the current user |
+| [`auth set-username`](#observal-auth-set-username) | Change the display name for the current user |
 
 ---
 
@@ -47,28 +47,6 @@ observal auth login
 ```
 
 Credentials are saved to `~/.observal/config.json` (mode `0600`).
-
----
-
-## `observal auth register`
-
-Self-register a new user account. Only available when the server is running in `DEPLOYMENT_MODE=local`. Enterprise mode uses SSO/SCIM instead.
-
-### Synopsis
-
-```bash
-observal auth register [--server URL] [--email EMAIL] [--password PASSWORD] [--name NAME]
-```
-
-### Example
-
-```bash
-observal auth register
-# Email: alice@example.com
-# Display name: Alice
-# Password: **************
-# Registered as alice@example.com (user)
-```
 
 ---
 
@@ -111,28 +89,43 @@ Useful as the first step when things aren't working.
 
 ---
 
-## `observal auth reset-password`
+## `observal auth change-password`
 
-Reset a forgotten password. The server logs a 6-character reset code to its console — the operator reads it and passes it to you.
+Change the password for the currently authenticated user. Prompts for the current password, then a new password.
 
 ### Synopsis
 
 ```bash
-observal auth reset-password [--email EMAIL]
+observal auth change-password
 ```
 
-### Flow
+### Example
 
 ```bash
-observal auth reset-password --email admin@demo.example
-# → server console prints:
-#   WARNING - PASSWORD RESET CODE for admin@demo.example: A7X9B2 (expires in 15 minutes)
-# Enter reset code: A7X9B2
+observal auth change-password
+# Current password: **************
 # New password: **************
-# Password reset for admin@demo.example.
+# Password changed.
 ```
 
-The same flow is available in the web UI via the **Forgot password?** link.
+---
+
+## `observal auth set-username`
+
+Change the display name for the currently authenticated user.
+
+### Synopsis
+
+```bash
+observal auth set-username <name>
+```
+
+### Example
+
+```bash
+observal auth set-username "Alice Smith"
+# Display name updated to: Alice Smith
+```
 
 ---
 

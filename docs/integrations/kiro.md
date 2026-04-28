@@ -47,13 +47,10 @@ curl -fsSL https://raw.githubusercontent.com/BlazeUp-AI/Observal/main/install.sh
 observal auth login
 ```
 
-### 3. Discover and instrument Kiro MCP servers
+### 3. Instrument Kiro MCP servers
 
 ```bash
-# See what MCP servers are configured
-observal scan --ide kiro
-
-# Instrument them (hooks + shims + OTel)
+# Instrument MCP servers (hooks + shims + OTel)
 observal doctor patch --all --ide kiro
 ```
 
@@ -198,5 +195,4 @@ For every gap between Kiro and Claude Code (hook event names, missing fields, et
 ## Related
 
 * [`observal pull`](../cli/pull.md)
-* [`observal scan`](../cli/scan.md)
 * [`observal doctor`](../cli/doctor.md)

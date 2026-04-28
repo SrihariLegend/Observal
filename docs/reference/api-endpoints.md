@@ -37,12 +37,6 @@ All `{id}` parameters accept a UUID or a name.
 | `GET` | `/{type}/{id}/metrics` | Metrics |
 | `POST` | `/agents/{id}/pull` | Pull agent (installs all components) |
 
-### Scan
-
-| Method | Path | Description |
-| --- | --- | --- |
-| `POST` | `/scan` | Bulk register items from IDE config scan |
-
 ### Review
 
 | Method | Path | Description |

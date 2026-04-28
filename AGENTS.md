@@ -21,10 +21,9 @@ The CLI is organized into nested command groups:
 ```
 observal
 ├── pull                     # install complete agent (primary workflow)
-├── scan                     # discover what's installed across IDEs (read-only)
 ├── use / profile            # swap IDE configs from git-hosted profiles
 ├── uninstall                # tear down Docker stack, remove repo and config
-├── auth                     # init, login, logout, whoami, status
+├── auth                     # login, logout, whoami, status, change-password, set-username
 ├── config                   # show, set, path, alias, aliases
 ├── registry                 # component registry parent group
 │   ├── mcp                  #   submit, list, show, install, delete
@@ -32,20 +31,25 @@ observal
 │   ├── hook                 #   submit, list, show, install, delete
 │   ├── prompt               #   submit, list, show, install, render, delete
 │   └── sandbox              #   submit, list, show, install, delete
-├── agent                    # create, list, show, install, delete, init, add, build, publish
+├── agent                    # create, bulk-create, list, show, install, delete, unarchive, init, add, build, publish
 ├── ops                      # observability commands
-│   ├── overview, metrics, top, traces, spans
+│   ├── sync, overview, metrics, top, traces, spans
 │   ├── rate, feedback
 │   └── telemetry            #   status, test
 ├── admin                    # admin commands
-│   ├── settings, set, users
+│   ├── settings, set, users, create-user, reset-password, delete-user, set-role
 │   ├── penalties, penalty-set, weights, weight-set
 │   ├── canaries, canary-add, canary-reports, canary-delete
+│   ├── diagnostics, cache-clear
+│   ├── saml-config, saml-config-set, saml-config-delete
+│   ├── scim-tokens, scim-token-create, scim-token-revoke
+│   ├── security-events, audit-log, audit-log-export
+│   ├── trace-privacy, trace-privacy-set
 │   ├── review               #   list, show, approve, reject
 │   └── eval                 #   run, scorecards, show, compare, aggregate
-├── migrate                  # ClickHouse telemetry migration tools
+├── migrate                  # export, import, validate, export-telemetry, import-telemetry, validate-telemetry
 ├── self                     # upgrade, downgrade
-└── doctor                   # diagnose IDE settings; `doctor patch` applies instrumentation
+└── doctor                   # diagnose, cleanup, patch; `doctor patch` applies instrumentation
 ```
 
 Deprecated root-level aliases exist for backward compatibility (e.g. `observal submit` → `observal registry mcp submit`, `observal upgrade` → `observal self upgrade`). These are hidden from `--help` and print deprecation warnings.
@@ -102,7 +106,7 @@ cd observal-server && uv run --with pytest --with pytest-asyncio --with pyyaml -
 - `api/routes/eval.py` : Run evals, list scorecards, compare versions, aggregate stats
 - `api/routes/admin.py` : Enterprise settings CRUD, user management, role changes, penalty catalog, dimension weights
 - `api/routes/alert.py` : Alert rule CRUD (metric threshold alerts with webhook URLs)
-- `api/routes/bulk.py` : Bulk agent creation from scan results
+- `api/routes/bulk.py` : Bulk agent creation from manifest files
 - `api/routes/jwks.py` : JWKS discovery endpoint for JWT public key distribution
 - `api/routes/otlp.py` : OTLP HTTP receiver; accepts standard `/v1/traces`, `/v1/logs`, `/v1/metrics` and converts to ClickHouse format
 - `api/routes/otel_dashboard.py` : OpenTelemetry-native dashboard queries
@@ -181,7 +185,6 @@ cd observal-server && uv run --with pytest --with pytest-asyncio --with pyyaml -
 - `cmd_hook.py` : `hook_app` subgroup: submit, list, show, install, delete
 - `cmd_prompt.py` : `prompt_app` subgroup: submit, list, show, install, render, delete
 - `cmd_sandbox.py` : `sandbox_app` subgroup: submit, list, show, install, delete
-- `cmd_scan.py` : `observal scan`: read-only discovery of IDE configs (Claude Code, Cursor, Kiro, VS Code, Gemini CLI, Codex CLI); `--ide` filter flag. Shows what's installed without modifying files.
 - `cmd_pull.py` : `observal pull`: fetch agent config from server, write IDE files (rules, MCP config, agent files) to disk; `--dry-run`, `--dir` flags; merges MCP configs with existing files
 - `cmd_profile.py` : `observal use` + `observal profile`: swap IDE configs from git-hosted profiles; clones/caches profiles, backs up current config, restores via `observal use default`
 - `cmd_ops.py` : `ops_app` subgroup: overview, metrics (--watch), top, traces, spans, rate, feedback, sync. Contains `telemetry_app` (status, test). Also `admin_app` subgroup: settings, set, users, penalties, penalty-set, weights, weight-set, canaries, canary-add, canary-reports, canary-delete. Contains `review_app` (list, show, approve, reject) and `eval_app` (run, scorecards, show, compare, aggregate). Also `self_app` subgroup: upgrade, downgrade
@@ -351,7 +354,7 @@ NEVER guess or hallucinate library APIs. Lookup docs first to ensure code matche
 - ClickHouse uses ReplacingMergeTree with bloom filter indexes. Queries go through the HTTP interface, not a native driver. The `_query` helper in `clickhouse.py` handles parameterized queries.
 - The shim is the core telemetry collection mechanism. It sits between the IDE and the MCP server, completely transparent. It never modifies messages: only observes. Telemetry is fire-and-forget via async POST; if the server is down, spans are silently dropped.
 - Config generators automatically wrap MCP commands with `observal-shim` for stdio transport or point to `observal-proxy` for HTTP transport. This is how telemetry collection is opt-in per install.
-- The `observal scan` command is read-only: it discovers IDE config files and lists MCP servers, hooks, and OTel configuration without modifying anything. The `observal doctor patch` command does the actual instrumentation: `--shim` wraps MCP commands with `observal-shim`, `--hook` installs telemetry hooks, `--all` does both plus OTel config. It creates timestamped backups before modifying any file. HTTP-transport MCPs are registered but not shimmed (they would need `observal-proxy`). Supports Claude Code, Cursor, Kiro, VS Code, Gemini CLI, Codex CLI, and Copilot CLI. Registration of components is manual via `observal registry <type> submit`.
+- The `observal doctor` command diagnoses IDE configs and checks Observal compatibility. The `observal doctor patch` command does the actual instrumentation: `--shim` wraps MCP commands with `observal-shim`, `--hook` installs telemetry hooks, `--all` does both plus OTel config. It creates timestamped backups before modifying any file. HTTP-transport MCPs are registered but not shimmed (they would need `observal-proxy`). Supports Claude Code, Cursor, Kiro, VS Code, Gemini CLI, Codex CLI, and Copilot CLI. Registration of components is manual via `observal registry <type> submit`.
 - GraphQL is the read layer for telemetry data. REST still exists for auth, CRUD, feedback, eval, admin. The GraphQL layer uses DataLoaders to batch ClickHouse queries.
 - Redis serves two purposes: pub/sub for GraphQL subscriptions (live trace/span events) and arq job queue for background eval runs.
 - The eval engine is pluggable. `LLMJudgeBackend` calls Bedrock or OpenAI-compatible endpoints. `FallbackBackend` returns deterministic scores when no LLM is configured. The 6 managed templates are prompt strings, not code.
@@ -360,7 +363,7 @@ NEVER guess or hallucinate library APIs. Lookup docs first to ensure code matche
 - Install routes use an owner fallback: try approved first, then allow the submitter to install their own pending/rejected items. Items are registered via `observal registry <type> submit` and immediately usable by the submitter.
 - The CLI stores config in `~/.observal/config.json`. Aliases are in `~/.observal/aliases.json`. Both are plain JSON. All API path parameters accept UUID or name; the server resolves names via `resolve_listing()` in `deps.py`.
 - All CLI list/show commands support `--output table|json|plain`. Use `--output json` for scripting. Use `--raw` on install commands to pipe config directly to files.
-- The CLI uses nested Typer subgroups: `auth`, `registry` (mcp/skill/hook/prompt/sandbox), `agent`, `ops` (telemetry), `admin` (review/eval), `self`, `config`, `doctor`, `migrate`. Root-level convenience commands: `pull`, `scan`, `uninstall`, `use`, `profile`.
+- The CLI uses nested Typer subgroups: `auth`, `registry` (mcp/skill/hook/prompt/sandbox), `agent`, `ops` (telemetry), `admin` (review/eval), `self`, `config`, `doctor`, `migrate`. Root-level convenience commands: `pull`, `uninstall`, `use`, `profile`.
 - Ruff is the Python linter and formatter. Line length is 120. Pre-commit hooks enforce it.
 - The `B008` ruff rule is suppressed because Typer requires function calls in argument defaults (`typer.Option(...)`, `typer.Argument(...)`).
 - The data model is agent-centric. Agents bundle components (MCPs, skills, hooks, prompts, sandboxes) via `agent_components`, a polymorphic junction table with NO foreign key on `component_id` (allows cross-type references). Agent downloads are deduplicated by `(user_id)` and `(fingerprint)` unique constraints; component downloads are not deduplicated. All components support organization ownership via `is_private` + `owner_org_id` fields. Git-based versioning: components require `git_url` + `git_ref` for reproducible installs.
@@ -382,3 +385,10 @@ The following paths are developer-local AI agent and IDE configurations. They ar
 - `.github/copilot-instructions.md`, `.copilot/` — GitHub Copilot
 - `.vscode/` — VS Code
 - `.worktrees/` — Git worktree scratch area
+
+<!-- lean-ctx -->
+## lean-ctx
+
+Prefer lean-ctx MCP tools over native equivalents for token savings.
+Full rules: @LEAN-CTX.md
+<!-- /lean-ctx -->

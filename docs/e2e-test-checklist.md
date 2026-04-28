@@ -142,11 +142,10 @@
 - [ ] As User C, leave ratings on the same agents/components
 - [ ] Verify aggregate rating summary displays correctly
 
-## 17. CLI -- Scan, Doctor & Patch
-- [ ] Run `observal scan` to discover IDE configs (read-only)
+## 17. CLI -- Doctor & Patch
 - [ ] Run `observal doctor patch --all --all-ides --dry-run` to preview instrumentation
 - [ ] Run `observal doctor patch --all --all-ides` to instrument IDEs
-- [ ] Run `observal self doctor` to check IDE compatibility
+- [ ] Run `observal doctor --ide claude-code` to check IDE compatibility
 
 ## 18. Admin — Agent Registry Management
 - [ ] Log in as Admin

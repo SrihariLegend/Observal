@@ -71,7 +71,6 @@ After registering, they can:
 ```bash
 observal agent list                           # see every agent the team has published
 observal pull team-reviewer --ide claude-code # install one
-observal scan                                 # discover what they have installed
 observal doctor patch --all --all-ides        # instrument everything
 ```
 

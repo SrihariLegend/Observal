@@ -10,15 +10,16 @@ Complete reference for the `observal` CLI. Every subcommand has its own page —
 | --- | --- |
 | [`observal auth`](auth.md) | Authentication and account management |
 | [`observal config`](config.md) | Local CLI configuration, aliases |
-| [`observal scan`](scan.md) | Discover what's installed across your IDEs (read-only) |
 | [`observal pull`](pull.md) | Install a published agent into an IDE |
+| [`observal use` / `observal profile`](profile.md) | Switch IDE configs to a git-hosted profile |
+| [`observal uninstall`](#observal-uninstall) | Remove Observal instrumentation from IDE configs |
 | [`observal registry`](registry.md) | Publish and manage components (MCP / skill / hook / prompt / sandbox) |
 | [`observal agent`](agent.md) | Author and publish agents |
 | [`observal ops`](ops.md) | Observability and operations (traces, spans, metrics, feedback) |
 | [`observal admin`](admin.md) | Admin operations (settings, users, review, eval, canaries) |
 | [`observal doctor`](doctor.md) | Diagnose IDE compatibility; `doctor patch` applies instrumentation |
-| [`observal profile`](profile.md) | Switch IDE configs to a git-hosted profile |
 | [`observal self`](self.md) | Upgrade or downgrade the CLI |
+| [`observal migrate`](migrate.md) | Export and import registry data and telemetry |
 
 ## Global options
 
